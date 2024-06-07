@@ -1,0 +1,21 @@
+[project]
+name = "SmartReceptionist"
+version = "0.1.0"
+description = "AI powered smart receptionist for your home."
+authors = [{ name = "Dasun Sathsara", email = "x@dasunsathsara.com" }]
+dependencies = [
+    "websockets>=12.0",
+    "python-telegram-bot>=21.2",
+    "ultralytics>=8.2.28",
+    "python-dotenv>=1.0.1",
+    "sinricpro @ file:///E:/Dev/sinric",
+]
+
+requires-python = ">=3.12"
+
+readme = "README.md"
+license = { text = "MIT" }
+
+
+[tool.pdm]
+distribution = false
