@@ -3,21 +3,28 @@ from telegram.ext import (
     ContextTypes,
 )
 
-from .interfaces.iapp_state import IAppState
-from .interfaces.ievent_handler import IEventHandler
-from .event import Event
+from .app_state import AppState
+from .events.event_listener import EventListener
 
 
 class TelegramBot:
-    def __init__(self, admin: int, event_listener: IEventHandler, app_state: IAppState):
+    def __init__(self, admin: int, event_listener: EventListener, app_state: AppState):
         self.context = None
         self.event_listener = event_listener
         self.app_state = app_state
         self.admin = admin
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        # Send a welcome message
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="Welcome to Smart Receptionist!")
+        if not update.effective_user.id == self.admin:
+            await update.message.reply_text("You are not authorized to use this bot.")
+            return
 
-        # Signal that the user has started the bot
-        await self.event_listener.enqueue_event(Event("start", update.effective_user.id))
+        if not self.app_state.esp_s3_connected():
+            await update.message.reply_text("ESP S3 is not connected.")
+            return
+
+        if not self.app_state.esp_cam_connected():
+            await update.message.reply_text("ESP CAM is not connected.")
+            return
+
+        await update.message.reply_text("Welcome to Smart Receptionist Bot!")

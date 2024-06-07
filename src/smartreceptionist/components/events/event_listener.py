@@ -1,23 +1,23 @@
 import asyncio
+from typing import TYPE_CHECKING
 
-from .interfaces.iapp_state import IAppState
-from .interfaces.ievent_handler import IEventHandler
 from .event import Event
-from .telegram_bot import TelegramBot
-from .ws_server import WebSocketServer
+
+if TYPE_CHECKING:
+    from .event_handler import EventHandler
 
 
-class EventHandler(IEventHandler):
+class EventListener:
     def __init__(self, ):
         self.queue = asyncio.Queue()
 
-    async def process_events(self, telegram_bot: TelegramBot, app_state: IAppState, ws_server: WebSocketServer):
+    async def listen(self, event_handler: 'EventHandler'):
         while True:
             try:
                 event = await self.queue.get()
                 # User started the bot
                 if event.event_type == 'start':
-                    await ws_server.send('hi')
+                    ...
                 self.queue.task_done()
             except asyncio.CancelledError:
                 break

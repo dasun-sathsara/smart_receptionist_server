@@ -9,7 +9,8 @@ from telegram.ext import (
 )
 
 from components.app_state import AppState
-from components.event_handler import EventHandler
+from components.events.event_handler import EventHandler
+from components.events.event_listener import EventListener
 from components.telegram_bot import TelegramBot
 from components.ws_server import WebSocketServer
 from config import Config
@@ -53,15 +54,16 @@ async def main():
     Config.validate()
 
     app_state = AppState()
-    event_handler = EventHandler()
-    telegram_bot = TelegramBot(admin=int(Config.ADMIN_USER_ID), event_listener=event_handler, app_state=app_state)
-    ws_server = WebSocketServer(event_listener=event_handler, app_state=app_state)
+    event_listener = EventListener()
+    telegram_bot = TelegramBot(admin=int(Config.ADMIN_USER_ID), event_listener=event_listener, app_state=app_state)
+    ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
+    event_handler = EventHandler(telegram_bot=telegram_bot, ws_server=ws_server, app_state=app_state)
 
     tg_app = await initialize_telegram_app(telegram_bot)
     ws_server_process = await initialize_ws_server(ws_server)
 
     # Start the event listener
-    event_listener_task = asyncio.create_task(event_handler.process_events(telegram_bot, app_state, ws_server))
+    event_listener_task = asyncio.create_task(event_listener.listen(event_handler))
 
     # Create a shared event loop for signal handling and tasks
     loop = asyncio.get_event_loop()
