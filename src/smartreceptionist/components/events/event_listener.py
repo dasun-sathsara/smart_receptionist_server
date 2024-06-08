@@ -41,6 +41,11 @@ class EventListener:
             except Exception as e:
                 self.logger.error(f"Error handling ESP state change: {e}")
 
+        elif event.event_type == "person_detected":
+            ...
+        elif event.event_type == "motion_detected":
+            ...
+
     async def enqueue_event(self, event: Event):
 
         try:

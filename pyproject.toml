@@ -9,6 +9,7 @@ dependencies = [
     "ultralytics>=8.2.28",
     "python-dotenv>=1.0.1",
     "sinricpro @ file:///E:/Dev/sinric",
+    "omegaconf>=2.3.0",
 ]
 
 requires-python = ">=3.12"

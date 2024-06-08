@@ -21,7 +21,6 @@ class EventHandler:
             self.logger.error(f"Error sending message to WebSocket: {e}")
 
     async def handle_esp_state_change(self, event: Event):
-        self.logger.info(f"Received ESP state change event: {event.data}")
         device = event.data["device"]
         new_state_str = event.data["state"]  # Get the state as a string
 
@@ -31,3 +30,9 @@ class EventHandler:
 
         # Use setattr to dynamically set the state attribute on the app_state object
         setattr(self.app_state, f"{device}_state", new_state)
+
+    async def handle_motion_detected(self, event: Event):
+        ...
+
+    async def handle_person_detected(self, event: Event):
+        ...

@@ -55,6 +55,12 @@ class WebSocketServer:
         elif message.event_type == 'change_state':
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
 
+        elif message.event_type == 'person_detected':
+            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+
+        elif message.event_type == 'motion_detected':
+            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
 
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
