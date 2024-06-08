@@ -1,53 +1,84 @@
+import asyncio
 import json
 import logging
+from dataclasses import asdict
 from dataclasses import dataclass
+from typing import Literal
 
-from websockets import WebSocketServerProtocol
+from websockets import WebSocketServerProtocol, ConnectionClosed
 
-from .app_state import AppState
-from .app_state import ESPState
+from .app_state import AppState, ESPState
+from .events.event import Event
 from .events.event_listener import EventListener
 
 
 @dataclass
 class WSMessage:
     event_type: str
-    data: str
+    data: dict
+
+
+class WSMessageEncoder(json.JSONEncoder):
+    def default(self, o):
+        if isinstance(o, WSMessage):
+            return asdict(o)  # Convert dataclass to dict
+        return super().default(o)
 
 
 class WebSocketServer:
     def __init__(self, event_listener: EventListener, app_state: AppState):
         self.app_state = app_state
         self.event_listener = event_listener
-        self.connected_devices = {}  # New attribute to keep track of connected devices
+        self.connected_devices = {}
+        self.logger = logging.getLogger(__name__)
 
-    async def send(self, data: any):
-        logging.info(f"Sending data: {data}")
+    async def send(self, device: Literal['esp_cam', 'esp_s3'], message: WSMessage):
+        for websocket, device_name in self.connected_devices.items():
+            if device_name == device:
+                try:
+                    await websocket.send(json.dumps(message, cls=WSMessageEncoder))
+                except ConnectionClosed:
+                    self.logger.warning(f"Failed to send to {device}: connection closed.")
+
+    async def _handle_init_message(self, message: WSMessage, websocket: WebSocketServerProtocol):
+        device_name = message.data['device']
+        if device_name in ("esp_cam", "esp_s3"):
+            self.connected_devices[websocket] = device_name
+            setattr(self.app_state, f"{device_name}_state", ESPState.CONNECTED)
+            self.logger.info(f"{device_name} connected.")
 
     async def process_messages(self, message: WSMessage, websocket: WebSocketServerProtocol):
 
-        # ESPs are connected
         if message.event_type == 'init':
-            self.app_state.set_esps_state(message.data, ESPState.CONNECTED)
-            self.connected_devices[websocket] = message.data  # Add the device to the dictionary
+            await self._handle_init_message(message, websocket)
+
+        elif message.event_type == 'change_state':
+            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
-        logging.info(f"Websocket client connected: {websocket.remote_address}")
+
+        self.logger.info(f"Websocket client connected: {websocket.remote_address}")
 
         try:
             async for message in websocket:
-                logging.info(f"Received message: {message}")
+                self.logger.info(f"Received message: {message}")
 
                 try:
                     message = WSMessage(**json.loads(message))
                 except json.JSONDecodeError:
-                    logging.error(f"Invalid JSON data: {message}")
-                    continue
+                    self.logger.error(f"Invalid JSON data: {message}")
+                    await websocket.close(code=1007, reason="Invalid JSON")
+                    return
 
-                await self.process_messages(message, websocket)
+                await asyncio.create_task(self.process_messages(message, websocket))
+
+        except ConnectionClosed as e:
+            self.logger.warning(f"Connection closed unexpectedly: {e.code} - {e.reason}")
         finally:
-            logging.info(f"Websocket client disconnected: {websocket.remote_address}")
-            device = self.connected_devices.pop(websocket)  # Remove the device from the dictionary
+            self.logger.info(f"Websocket client disconnected: {websocket.remote_address}")
 
-            self.app_state.set_esps_state(device, ESPState.DISCONNECTED)
-            await websocket.close()
+            # Clean up connected devices
+            if websocket in self.connected_devices:
+                device_name = self.connected_devices.pop(websocket)
+                setattr(self.app_state, f"{device_name}_state", ESPState.DISCONNECTED)
+                self.logger.info(f"{device_name} disconnected.")

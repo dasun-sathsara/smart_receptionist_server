@@ -6,6 +6,7 @@ import websockets
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
+    CallbackQueryHandler
 )
 
 from components.app_state import AppState
@@ -23,7 +24,11 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     # /start command handler
     start_handler = CommandHandler("start", telegram_bot.start)
 
+    # Callback query handler
+    action_prompt_handler = CallbackQueryHandler(telegram_bot.handle_callback_query)
+
     tg_app.add_handler(start_handler)
+    tg_app.add_handler(action_prompt_handler)
 
     # Initialize the bot
     await tg_app.initialize()
@@ -42,6 +47,7 @@ async def initialize_ws_server(ws_server: WebSocketServer):
     #     certfile="/etc/letsencrypt/live/x.dasunsathsara.com/fullchain.pem",
     #     keyfile="/etc/letsencrypt/live/x.dasunsathsara.com/privkey.pem",
     # )
+
     # ws_server_process = await websockets.serve(ws_server.register, "x.dasunsathsara.com", 443, ssl=ssl_context)
 
     # for local development

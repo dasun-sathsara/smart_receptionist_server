@@ -1,3 +1,5 @@
+import asyncio
+from dataclasses import dataclass, field
 from enum import Enum
 
 
@@ -16,27 +18,24 @@ class ESPState(Enum):
     DISCONNECTED = "disconnected"
 
 
+@dataclass
 class AppState:
-    def get_light_state(self):
-        pass
+    gate_state: GateState = GateState.CLOSED
+    gate_state_changed_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    def get_gate_state(self):
-        pass
+    light_state: LightState = LightState.OFF
+    light_state_changed_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    def __init__(self):
-        self.gate: GateState = GateState.CLOSED
-        self.light: LightState = LightState.OFF
-        self.esp_s3: ESPState = ESPState.DISCONNECTED
-        self.esp_cam: ESPState = ESPState.DISCONNECTED
+    esp_s3_state: ESPState = ESPState.DISCONNECTED
+    esp_s3_state_changed_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    def set_esps_state(self, esp_name: str, state: ESPState):
-        if esp_name == 'esp_s3':
-            self.esp_s3 = ESPState(state)
-        elif esp_name == 'esp_cam':
-            self.esp_cam = ESPState(state)
+    esp_cam_state: ESPState = ESPState.DISCONNECTED
+    esp_cam_state_changed_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    def esp_s3_connected(self):
-        return self.esp_s3 == ESPState.CONNECTED
+    def __setattr__(self, name: str, value: any) -> None:
+        """Trigger an event when an attribute is changed."""
 
-    def esp_cam_connected(self):
-        return self.esp_cam == ESPState.CONNECTED
+        super().__setattr__(name, value)
+        event_name = name + '_changed_event'
+        if event_name in self.__dict__:  # Check if it's a monitored attribute
+            self.__dict__[event_name].set()
