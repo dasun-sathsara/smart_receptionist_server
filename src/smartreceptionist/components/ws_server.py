@@ -61,13 +61,16 @@ class WebSocketServer:
         elif message.event_type == 'motion_detected':
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
 
+        elif message.event_type == 'image':
+            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
 
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
 
         try:
             async for message in websocket:
-                self.logger.info(f"Received message: {message}")
+                self.logger.info(f"Received message: {message[:100]}")
 
                 try:
                     message = WSMessage(**json.loads(message))
@@ -76,7 +79,7 @@ class WebSocketServer:
                     await websocket.close(code=1007, reason="Invalid JSON")
                     return
 
-                await asyncio.create_task(self.process_messages(message, websocket))
+                _ = asyncio.create_task(self.process_messages(message, websocket))
 
         except ConnectionClosed as e:
             self.logger.warning(f"Connection closed unexpectedly: {e.code} - {e.reason}")

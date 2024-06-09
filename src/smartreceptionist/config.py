@@ -2,12 +2,18 @@ import logging
 import os
 
 from dotenv import load_dotenv
+from rich.logging import RichHandler
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Set up logging
-logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
+# Set up logging with RichHandler
+logging.basicConfig(
+    level="INFO",
+    format="%(message)s",
+    datefmt="[%X]",
+    handlers=[RichHandler(rich_tracebacks=True)]  # Enable rich tracebacks for errors
+)
 
 # Set higher logging level for httpx to avoid all GET and POST requests being logged
 logging.getLogger("httpx").setLevel(logging.WARNING)

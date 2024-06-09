@@ -13,6 +13,7 @@ from .image import Image
 class ImageProcessor:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
+        self.model = YOLO("yolov8n-face.pt")
 
     async def process_image(self, image_data: str) -> Image:
         with concurrent.futures.ProcessPoolExecutor() as pool:  # Use ProcessPoolExecutor
@@ -20,7 +21,6 @@ class ImageProcessor:
         return processed_image
 
     def _process_image_sync(self, image_data: str) -> Image:
-        model = YOLO("yolov8n-face.pt")
 
         # Decode the base64 image data
         image_bytes = b64decode(image_data)
@@ -31,7 +31,7 @@ class ImageProcessor:
             self.logger.error("Failed to decode image from base64 data.")
             raise ValueError("Invalid image data")
 
-        results = model.predict(source=image, save=False, max_det=5)
+        results = self.model.predict(source=image, save=False, max_det=5)
 
         faces_detected = False
 
