@@ -6,7 +6,8 @@ import websockets
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
-    CallbackQueryHandler
+    CallbackQueryHandler,
+    MessageHandler,
 )
 
 from components.app_state import AppState
@@ -26,11 +27,19 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     # /start command handler
     start_handler = CommandHandler("start", telegram_bot.start)
 
+    # /ap command handler
+    ap_handler = CommandHandler("ap", telegram_bot.handle_action_prompt)
+
+    # Generic message handler
+    message_handler = MessageHandler(callback=telegram_bot.handle_message, filters=None)
+
     # Callback query handler
     action_prompt_handler = CallbackQueryHandler(telegram_bot.handle_callback_query)
 
     tg_app.add_handler(start_handler)
     tg_app.add_handler(action_prompt_handler)
+    tg_app.add_handler(ap_handler)
+    tg_app.add_handler(message_handler)
 
     # Initialize the bot
     await tg_app.initialize()
@@ -65,9 +74,18 @@ async def main():
     event_listener = EventListener()
     image_processor = ImageProcessor()
     image_queue = ImageQueue(image_processor=image_processor)
-    telegram_bot = TelegramBot(admin=int(Config.ADMIN_USER_ID), event_listener=event_listener, app_state=app_state)
+    telegram_bot = TelegramBot(
+        admin_user_id=int(Config.ADMIN_USER_ID),
+        event_listener=event_listener,
+        app_state=app_state,
+    )
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
-    event_handler = EventHandler(telegram_bot=telegram_bot, ws_server=ws_server, app_state=app_state, image_queue=image_queue)
+    event_handler = EventHandler(
+        telegram_bot=telegram_bot,
+        ws_server=ws_server,
+        app_state=app_state,
+        image_queue=image_queue,
+    )
 
     tg_app = await initialize_telegram_app(telegram_bot)
     ws_server_process = await initialize_ws_server(ws_server)
@@ -109,6 +127,7 @@ async def main():
 
 if __name__ == "__main__":
     import os
+
     print(os.getcwd())
     # asyncio.run(main(), debug=True)
     asyncio.run(main())

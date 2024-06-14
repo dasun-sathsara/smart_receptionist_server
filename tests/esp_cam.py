@@ -15,8 +15,7 @@ async def websocket_client():
         await websocket.send(init_message)
         logging.info("[ESPCAM] Sent init message")
 
-        async def handle_change_state(event: Dict):
-            ...
+        async def handle_change_state(event: Dict): ...
 
         # Receive and process messages from the server
         async for message in websocket:

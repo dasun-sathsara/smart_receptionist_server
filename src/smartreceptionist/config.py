@@ -12,7 +12,7 @@ logging.basicConfig(
     level="INFO",
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[RichHandler(rich_tracebacks=True)]  # Enable rich tracebacks for errors
+    handlers=[RichHandler(rich_tracebacks=True)],  # Enable rich tracebacks for errors
 )
 
 # Set higher logging level for httpx to avoid all GET and POST requests being logged

@@ -21,7 +21,6 @@ class ImageProcessor:
         return processed_image
 
     def _process_image_sync(self, image_data: str) -> Image:
-
         # Decode the base64 image data
         image_bytes = b64decode(image_data)
         image_array = np.frombuffer(image_bytes, dtype=np.uint8)  # Convert to NumPy array
@@ -43,7 +42,7 @@ class ImageProcessor:
                 faces_detected = True
 
         # Re-encode the processed image to base64
-        _, buffer = cv2.imencode('.jpg', image)
+        _, buffer = cv2.imencode(".jpg", image)
         processed_image_data = b64encode(buffer).decode("utf-8")
         processed_image = Image(image_data=processed_image_data, faces_detected=faces_detected)
         return processed_image

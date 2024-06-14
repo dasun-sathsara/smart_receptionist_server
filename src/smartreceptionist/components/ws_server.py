@@ -32,7 +32,7 @@ class WebSocketServer:
         self.connected_devices = {}
         self.logger = logging.getLogger(__name__)
 
-    async def send(self, device: Literal['esp_cam', 'esp_s3'], message: WSMessage):
+    async def send(self, device: Literal["esp_cam", "esp_s3"], message: WSMessage):
         for websocket, device_name in self.connected_devices.items():
             if device_name == device:
                 try:
@@ -41,31 +41,26 @@ class WebSocketServer:
                     self.logger.warning(f"Failed to send to {device}: connection closed.")
 
     async def _handle_init_message(self, message: WSMessage, websocket: WebSocketServerProtocol):
-        device_name = message.data['device']
+        device_name = message.data["device"]
         if device_name in ("esp_cam", "esp_s3"):
             self.connected_devices[websocket] = device_name
             setattr(self.app_state, f"{device_name}_state", ESPState.CONNECTED)
             self.logger.info(f"{device_name} connected.")
 
     async def process_messages(self, message: WSMessage, websocket: WebSocketServerProtocol):
-
-        if message.event_type == 'init':
+        if message.event_type == "init":
             await self._handle_init_message(message, websocket)
 
-        elif message.event_type == 'change_state':
+        elif message.event_type == "change_state":
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
-
-        elif message.event_type == 'person_detected':
+        elif message.event_type == "person_detected":
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
-
-        elif message.event_type == 'motion_detected':
+        elif message.event_type == "motion_detected":
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
-
-        elif message.event_type == 'image':
+        elif message.event_type == "image":
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
-
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
 
         try:

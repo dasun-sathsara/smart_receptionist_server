@@ -3,6 +3,8 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/media" />
+      <excludeFolder url="file://$MODULE_DIR$/tests/test_images" />
     </content>
     <orderEntry type="jdk" jdkName="Python 3.12 (Smart Receptionist)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

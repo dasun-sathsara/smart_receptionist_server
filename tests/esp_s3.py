@@ -22,7 +22,12 @@ async def websocket_client():
             await asyncio.sleep(1)
 
             # Send a response message
-            response = json.dumps({"event_type": "change_state", "data": {"device": event["data"]["device"], "state": state}})
+            response = json.dumps(
+                {
+                    "event_type": "change_state",
+                    "data": {"device": event["data"]["device"], "state": state},
+                }
+            )
             await websocket.send(response)
             logging.info(f"[ESPS3] Sent response: {response}")
 

@@ -6,10 +6,15 @@ from .image_processor import ImageProcessor
 
 
 class ImageQueue:
-    def __init__(self, image_processor: ImageProcessor, max_unprocessed_queue_size: int = 20, max_processed_queue_size: int = 10):
+    def __init__(
+        self,
+        image_processor: ImageProcessor,
+        max_unprocessed_queue_size: int = 20,
+        max_processed_queue_size: int = 10,
+    ):
         self.image_processor = image_processor
-        self.unprocessed_image_queue = asyncio.Queue(maxsize=max_unprocessed_queue_size)
-        self.processed_image_queue = asyncio.Queue(maxsize=max_processed_queue_size)
+        self._unprocessed_image_queue = asyncio.Queue(maxsize=max_unprocessed_queue_size)
+        self._processed_image_queue = asyncio.Queue(maxsize=max_processed_queue_size)
         self._faces_detected_images = asyncio.Queue(maxsize=max_processed_queue_size)
         self.num_of_face_detected_images = 0
         self.logger = logging.getLogger(__name__)
@@ -17,7 +22,7 @@ class ImageQueue:
 
     async def enqueue_image(self, image_data: str):
         try:
-            await self.unprocessed_image_queue.put(image_data)
+            await self._unprocessed_image_queue.put(image_data)
         except asyncio.QueueFull:
             self.logger.error("Unprocessed image queue is full. Image dropped.")
 
@@ -27,15 +32,15 @@ class ImageQueue:
     async def _process_images(self) -> None:
         while True:
             try:
-                image_data = await self.unprocessed_image_queue.get()
-                self.unprocessed_image_queue.task_done()  # Mark the task as done in the unprocessed queue
+                image_data = await self._unprocessed_image_queue.get()
+                self._unprocessed_image_queue.task_done()  # Mark the task as done in the unprocessed queue
             except asyncio.CancelledError:
                 self.logger.info("Image processing task cancelled.")
                 break
 
             try:
                 image = await self.image_processor.process_image(image_data)
-                await self.processed_image_queue.put(image)
+                await self._processed_image_queue.put(image)
 
                 if image.faces_detected:
                     await self._faces_detected_images.put(image)
@@ -47,8 +52,8 @@ class ImageQueue:
                 self.logger.error(f"Error processing image: {e}")
 
     async def dequeue_processed_image(self) -> Image:
-        processed_image = await self.processed_image_queue.get()
-        self.processed_image_queue.task_done()
+        processed_image = await self._processed_image_queue.get()
+        self._processed_image_queue.task_done()
         return processed_image
 
     async def get_face_detected_images(self):
@@ -62,7 +67,7 @@ class ImageQueue:
         return faces_detected_images
 
     async def cleanup(self):
-        self.unprocessed_image_queue = asyncio.Queue()
-        self.processed_image_queue = asyncio.Queue()
+        self._unprocessed_image_queue = asyncio.Queue()
+        self._processed_image_queue = asyncio.Queue()
         self._faces_detected_images = asyncio.Queue()
         self.num_of_face_detected_images = 0

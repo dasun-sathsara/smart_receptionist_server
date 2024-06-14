@@ -33,12 +33,15 @@ class EventListener:
                 await self._cancel_handler_tasks()
                 break
 
-    async def _handle_event(self, event: Event, event_handler: "EventHandler", image_queue: "ImageQueue"):
+    async def _handle_event(
+        self,
+        event: Event,
+        event_handler: "EventHandler",
+        image_queue: "ImageQueue",
+    ):
         self.logger.info(f"Handling event: {event.event_type}")
-        if event.event_type == "change_state" and event.origin == "tg":
-            await asyncio.create_task(event_handler.handle_tg_state_change(event))
-        elif event.event_type == "change_state" and event.origin == "esp":
-            await asyncio.create_task(event_handler.handle_esp_state_change(event))
+        if event.event_type == "change_state":
+            await event_handler.handle_ap_state_change(event)
         elif event.event_type == "motion_detected":
             await image_queue.enqueue_image(event.data["image_data"])
             await asyncio.create_task(event_handler.handle_motion_detected())
