@@ -8,6 +8,7 @@ from telegram.ext import (
     CommandHandler,
     CallbackQueryHandler,
     MessageHandler,
+    filters,
 )
 
 from components.app_state import AppState
@@ -28,18 +29,22 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     start_handler = CommandHandler("start", telegram_bot.start)
 
     # /ap command handler
-    ap_handler = CommandHandler("ap", telegram_bot.handle_action_prompt)
+    ap_command_handler = CommandHandler("ap", telegram_bot.handle_action_prompt)
 
-    # Generic message handler
-    message_handler = MessageHandler(callback=telegram_bot.handle_message, filters=None)
+    # 'ap' message handler
+    ap_message_handler = MessageHandler(filters=filters.TEXT & filters.Regex(r"^ap$"), callback=telegram_bot.handle_action_prompt)
+
+    # Voice message handler
+    voice_message_handler = MessageHandler(filters=filters.VOICE, callback=telegram_bot.handle_voice_message)
 
     # Callback query handler
     action_prompt_handler = CallbackQueryHandler(telegram_bot.handle_callback_query)
 
     tg_app.add_handler(start_handler)
     tg_app.add_handler(action_prompt_handler)
-    tg_app.add_handler(ap_handler)
-    tg_app.add_handler(message_handler)
+    tg_app.add_handler(ap_command_handler)
+    tg_app.add_handler(ap_message_handler)
+    tg_app.add_handler(voice_message_handler)
 
     # Initialize the bot
     await tg_app.initialize()
@@ -99,7 +104,7 @@ async def main():
     # Ctrl+C (SIGINT) signal stops the application
     stop_application = loop.create_future()
 
-    def signal_handler(sig, frame):
+    def signal_handler(sig, _):
         stop_application.set_result(None)
         logging.info("Received signal %s, stopping application", sig)
 

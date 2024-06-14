@@ -21,7 +21,7 @@ async def check_ffmpeg_installed():
 
 
 async def transcode_opus_to_pcm(input_bytes: io.BytesIO) -> io.BytesIO:
-    """Transcode Opus audio data from a BytesIO to PCM (16-bit, 44.1kHz, mono) BytesIO."""
+    """Transcode Opus audio_processing data from a BytesIO to PCM (16-bit, 44.1kHz, mono) BytesIO."""
     await check_ffmpeg_installed()
 
     output_bytes = io.BytesIO()
@@ -56,7 +56,7 @@ async def transcode_opus_to_pcm(input_bytes: io.BytesIO) -> io.BytesIO:
 
 
 async def transcode_pcm_to_opus(input_bytes: io.BytesIO) -> io.BytesIO:
-    """Transcode PCM audio data from a BytesIO to Opus (16-bit, 44.1kHz, mono) BytesIO."""
+    """Transcode PCM audio_processing data from a BytesIO to Opus (16-bit, 44.1kHz, mono) BytesIO."""
     await check_ffmpeg_installed()
 
     output_bytes = io.BytesIO()
@@ -91,13 +91,13 @@ async def transcode_pcm_to_opus(input_bytes: io.BytesIO) -> io.BytesIO:
 
 
 async def load_audio_from_file(file_path: str) -> io.BytesIO:
-    """Loads audio data from a file into a BytesIO object."""
+    """Loads audio_processing data from a file into a BytesIO object."""
     async with aiofiles.open(file_path, "rb") as f:
         return io.BytesIO(await f.read())
 
 
 async def save_audio_to_file(audio_bytes: io.BytesIO, file_path: str) -> None:
-    """Saves audio data from a BytesIO object to a file."""
+    """Saves audio_processing data from a BytesIO object to a file."""
     async with aiofiles.open(file_path, "wb") as f:
         await f.write(audio_bytes.getvalue())
 
@@ -108,7 +108,7 @@ async def convert_and_save(
     source_format: str,
     target_format: str,
 ) -> None:
-    """Converts audio data in memory and saves the result to a file."""
+    """Converts audio_processing data in memory and saves the result to a file."""
     try:
         if source_format == "opus" and target_format == "pcm":
             converted_bytes = await transcode_opus_to_pcm(input_bytes)
@@ -130,7 +130,7 @@ async def main():
     output_pcm_file = "Rihanna - Stay.pcm"
     output_opus_file = "Rihanna - Stay C.opus"
 
-    # Load input audio from file
+    # Load input audio_processing from file
     input_opus_bytes = await load_audio_from_file(input_opus_file)
 
     # Convert and save in memory

@@ -15,6 +15,16 @@ async def websocket_client():
         await websocket.send(init_message)
         logging.info("[ESPS3] Sent init message")
 
+        async def send_unsolicited_message():
+            # Send an unsolicited message
+            await asyncio.sleep(10)
+            unsolicited_message = json.dumps({"event_type": "change_state", "data": {"device": "gate", "state": "open"}})
+            await websocket.send(unsolicited_message)
+            logging.info("[ESPS3] Sent unsolicited message")
+
+        # Send an unsolicited message
+        _ = asyncio.create_task(send_unsolicited_message())
+
         async def handle_change_state(event: Dict):
             state = event["data"]["state"]
 
