@@ -1,7 +1,11 @@
 import asyncio
 import logging
 
+from sinric import SinricPro
+from sinric import SinricProConstants
+
 from ..app_state import AppState, GateState, LightState
+from ..config import Config
 from ..events.event import Event
 from ..image_processing.image_queue import ImageQueue
 from ..telegram_bot import TelegramBot
@@ -15,11 +19,13 @@ class EventHandler:
         ws_server: WebSocketServer,
         app_state: AppState,
         image_queue: ImageQueue,
+        sinric_pro_client: SinricPro,
     ):
         self.telegram_bot = telegram_bot
         self.ws_server = ws_server
         self.app_state = app_state
         self.image_queue = image_queue
+        self.sinric_pro_client = sinric_pro_client
         self.logger = logging.getLogger(__name__)
 
     async def handle_ap_state_change(self, event: Event):
@@ -41,7 +47,29 @@ class EventHandler:
                 elif new_state == LightState.OFF:
                     await self.telegram_bot.send_message("💡 Light is now off.")
 
-        elif event.origin == "tg":
+            if device == "gate":
+                self.sinric_pro_client.event_handler.raise_event(
+                    Config.GATE_ID,
+                    SinricProConstants.SET_MODE,
+                    data={
+                        SinricProConstants.MODE: SinricProConstants.OPEN
+                        if new_state == GateState.OPEN
+                        else SinricProConstants.CLOSE,
+                    },
+                )
+
+            elif device == "light":
+                self.sinric_pro_client.event_handler.raise_event(
+                    Config.LIGHT_ID,
+                    SinricProConstants.SET_POWER_STATE,
+                    data={
+                        SinricProConstants.STATE: SinricProConstants.POWER_STATE_ON
+                        if new_state == LightState.ON
+                        else SinricProConstants.POWER_STATE_OFF
+                    },
+                )
+
+        elif event.origin == "tg" or event.origin == "ghome":
             try:
                 message = WSMessage(event_type="change_state", data=event.data)
                 await self.ws_server.send("esp_s3", message)
@@ -119,3 +147,5 @@ class EventHandler:
         self.logger.info("Sending access control prompt to Telegram.")
         await self.telegram_bot.send_access_control_prompt()
         await self.image_queue.cleanup()
+
+    def handle_voice_message(self, event): ...

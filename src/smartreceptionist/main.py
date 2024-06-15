@@ -3,6 +3,7 @@ import logging
 import signal
 
 import websockets
+from sinric import SinricPro, SinricProConstants
 from telegram.ext import (
     ApplicationBuilder,
     CommandHandler,
@@ -12,13 +13,14 @@ from telegram.ext import (
 )
 
 from components.app_state import AppState
+from components.config import Config
 from components.events.event_handler import EventHandler
 from components.events.event_listener import EventListener
+from components.google_home import GoogleHome
 from components.image_processing.image_processor import ImageProcessor
 from components.image_processing.image_queue import ImageQueue
 from components.telegram_bot import TelegramBot
 from components.ws_server import WebSocketServer
-from config import Config
 
 
 async def initialize_telegram_app(telegram_bot: TelegramBot):
@@ -72,6 +74,37 @@ async def initialize_ws_server(ws_server: WebSocketServer):
     return ws_server_process
 
 
+async def initialize_sinric_pro(set_mode, set_power_state):
+    callbacks = {SinricProConstants.SET_MODE: set_mode, SinricProConstants.SET_POWER_STATE: set_power_state}
+
+    sinric_pro_client = SinricPro(
+        Config.SINRIC_APP_KEY,
+        [Config.GATE_ID, Config.LIGHT_ID],
+        callbacks,
+        enable_log=False,
+        restore_states=False,
+        secret_key=Config.SINRIC_APP_SECRET,
+    )
+
+    # Default states
+    sinric_pro_client.event_handler.raise_event(
+        Config.GATE_ID,
+        SinricProConstants.SET_MODE,
+        data={
+            SinricProConstants.MODE: SinricProConstants.CLOSE,
+        },
+    )
+
+    sinric_pro_client.event_handler.raise_event(
+        Config.LIGHT_ID,
+        SinricProConstants.SET_POWER_STATE,
+        data={SinricProConstants.POWER_STATE: SinricProConstants.POWER_STATE_OFF},
+    )
+
+    sinric_pro_task = asyncio.create_task(sinric_pro_client.connect())
+    return sinric_pro_client, sinric_pro_task
+
+
 async def main():
     Config.validate()
 
@@ -85,11 +118,15 @@ async def main():
         app_state=app_state,
     )
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
+    google_home = GoogleHome(event_listener)
+    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(google_home.handle_set_mode, google_home.handle_power_state)
+
     event_handler = EventHandler(
         telegram_bot=telegram_bot,
         ws_server=ws_server,
         app_state=app_state,
         image_queue=image_queue,
+        sinric_pro_client=sinric_pro_client,
     )
 
     tg_app = await initialize_telegram_app(telegram_bot)
@@ -112,6 +149,9 @@ async def main():
 
     # Wait for the stop signal
     await stop_application
+
+    # Cancel the Sinric Pro task
+    sinric_pro_task.cancel()
 
     # Cancel the event listener task
     event_listener_task.cancel()

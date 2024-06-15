@@ -41,7 +41,7 @@ class EventListener:
     ):
         self.logger.info(f"Handling event: {event.event_type}")
         if event.event_type == "change_state":
-            await event_handler.handle_ap_state_change(event)
+            await asyncio.create_task(event_handler.handle_ap_state_change(event))
         elif event.event_type == "motion_detected":
             await image_queue.enqueue_image(event.data["image_data"])
             await asyncio.create_task(event_handler.handle_motion_detected())
@@ -50,6 +50,8 @@ class EventListener:
             await asyncio.create_task(event_handler.handle_person_detected())
         elif event.event_type == "image":
             await image_queue.enqueue_image(event.data["image_data"])
+        elif event.event_type == "voice_message":
+            await asyncio.create_task(event_handler.handle_voice_message(event))
 
         # Mark the task as done
         self.queue.task_done()
