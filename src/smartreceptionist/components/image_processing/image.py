@@ -21,7 +21,7 @@ class Image:
     async def save_to_disk(self) -> None:
         try:
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: self.path.write_bytes((self.image_data)))
+            await loop.run_in_executor(None, lambda: self.path.write_bytes(self.image_data))
 
             self.logger.info(f"Image saved to {self.path}")
         except FileNotFoundError as e:

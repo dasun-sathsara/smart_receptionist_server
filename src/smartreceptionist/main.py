@@ -4,6 +4,8 @@ import signal
 
 import websockets
 from components.app_state import AppState
+from components.audio_processing.audio_processor import AudioProcessor
+from components.audio_processing.audio_queue import AudioQueue
 from components.config import Config
 from components.events.event_handler import EventHandler
 from components.events.event_listener import EventListener
@@ -118,6 +120,9 @@ async def main():
         event_listener=event_listener,
         app_state=app_state,
     )
+    audio_queue = AudioQueue()
+    audio_processor = AudioProcessor()
+
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
     google_home = GoogleHome(event_listener)
     sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(
@@ -130,6 +135,8 @@ async def main():
         app_state=app_state,
         image_queue=image_queue,
         sinric_pro_client=sinric_pro_client,
+        audio_queue=audio_queue,
+        audio_processor=audio_processor,
     )
 
     tg_app = await initialize_telegram_app(telegram_bot)

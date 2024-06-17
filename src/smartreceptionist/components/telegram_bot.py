@@ -3,11 +3,11 @@ import logging
 from enum import Enum
 from pathlib import Path
 
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot, InputMediaPhoto
-from telegram.error import TelegramError, TimedOut, NetworkError
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update
+from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import ContextTypes
 
-from .app_state import AppState, LightState, GateState, ESPState
+from .app_state import AppState, ESPState, GateState, LightState
 from .events.event import Event
 from .events.event_listener import EventListener
 
@@ -75,7 +75,7 @@ class TelegramBot:
             self.logger.info(f"Received voice message: {voice_file.file_id}")
             voice_bytes = await voice_file.download_as_bytearray()
 
-            await self.event_listener.enqueue_event(Event("voice_message", "tg", {"voice_bytes": voice_bytes}))
+            await self.event_listener.enqueue_event(Event("audio_data", "tg", {"audio": voice_bytes}))
 
         except (TelegramError, TimedOut, NetworkError) as e:
             error_message = f"Error getting or downloading voice message: {e}"
@@ -239,6 +239,18 @@ class TelegramBot:
             self.logger.info(f"Message sent: {message}")
         except TelegramError as e:
             self.logger.error(f"Error sending message: {e}")
+
+    async def send_voice_message(self, voice_bytes: bytes):
+        if not self.bot:
+            self.logger.error("Bot instance not found.")
+            return
+
+        try:
+            await self.bot.send_voice(self.admin_user_id, voice=voice_bytes)
+            self.logger.info("Voice message sent.")
+        except TelegramError as e:
+            self.logger.error(f"Error sending voice message: {e}")
+            raise
 
     async def _handle_access_control_response(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:

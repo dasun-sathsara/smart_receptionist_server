@@ -4,6 +4,9 @@ import logging
 from sinric import SinricPro, SinricProConstants
 
 from ..app_state import AppState, GateState, LightState
+from ..audio_processing.audio_helpers import get_latest_telegram_audio, save_audio_file
+from ..audio_processing.audio_processor import AudioProcessor
+from ..audio_processing.audio_queue import AudioQueue
 from ..config import Config
 from ..events.event import Event
 from ..image_processing.image_queue import ImageQueue
@@ -13,34 +16,45 @@ from ..ws_server import WebSocketServer, WSMessage
 
 class EventHandler:
     def __init__(
-        self,
-        telegram_bot: TelegramBot,
-        ws_server: WebSocketServer,
-        app_state: AppState,
-        image_queue: ImageQueue,
-        sinric_pro_client: SinricPro,
+            self,
+            telegram_bot: TelegramBot,
+            ws_server: WebSocketServer,
+            app_state: AppState,
+            image_queue: ImageQueue,
+            sinric_pro_client: SinricPro,
+            audio_queue: AudioQueue,
+            audio_processor: AudioProcessor,
     ):
         self.telegram_bot = telegram_bot
         self.ws_server = ws_server
         self.app_state = app_state
         self.image_queue = image_queue
         self.sinric_pro_client = sinric_pro_client
+        self.audio_queue = audio_queue
+        self.audio_processor = audio_processor
         self.logger = logging.getLogger(__name__)
 
     async def handle_audio_event(self, event: Event):
-        type = event.data["type"]
+        event_type = event.data["type"]
         action = event.data["action"]
 
-        if type == "play":
+        if event_type == "play":
             if action == "start":
                 self.app_state.is_playing = True
+                latest_audio = await get_latest_telegram_audio()
+                await self.ws_server.stream_audio(latest_audio)
             elif action == "stop":
                 self.app_state.is_playing = False
-        elif type == "record":
+        elif event_type == "record":
             if action == "start":
                 self.app_state.is_recording = True
             elif action == "stop":
                 self.app_state.is_recording = False
+                pcm_data = await self.audio_queue.get_audio_data()
+                opus_data = await self.audio_processor.transcode_pcm_to_opus(pcm_data)
+                await save_audio_file(opus_data, "esp")
+                self.logger.info("Audio was processed and saved.")
+                await self.telegram_bot.send_voice_message(opus_data)
 
     async def handle_ap_state_change_event(self, event: Event):
         if event.origin == "esp":
@@ -148,7 +162,7 @@ class EventHandler:
 
                 if self.image_queue.num_of_face_detected_images >= 1:
                     self.logger.info("Person confirmed at the gate!")
-                    await self.handle_person_confirmed_with_face()
+                    await self._handle_person_confirmed_with_face()
             else:
                 self.logger.info("Person confirmed, but no face detected.")
                 await self._handle_person_confirmed_without_face()
@@ -166,12 +180,15 @@ class EventHandler:
         await self.telegram_bot.send_access_control_prompt()
         await self.image_queue.cleanup()
 
-    ## Hnadling raw data
+    # Handling raw data
     async def handle_audio_data(self, event: Event):
+        audio_data = event.data["audio"]
         if event.origin == "esp":
-            ...
+            await self.audio_queue.add_audio_chunk(audio_data)
         elif event.origin == "tg":
-            ...
+            pcm = await self.audio_processor.transcode_opus_to_pcm(audio_data)
+            await save_audio_file(pcm, "tg")
+            self.logger.info("Audio was processed and saved.")
 
     async def handle_image_data(self, event: Event):
-        await self.image_queue.enqueue_image(event.data)
+        await self.image_queue.enqueue_image(event.data["image"])

@@ -27,6 +27,10 @@ class Config:
     GATE_ID = os.getenv("GATE_ID")
     LIGHT_ID = os.getenv("LIGHT_ID")
 
+    SAMPLE_RATE = 44100
+    BYTES_PER_SAMPLE = 2
+    DEFAULT_CHUNK_SIZE = 1024
+
     @staticmethod
     def validate():
         if not Config.BOT_TOKEN:

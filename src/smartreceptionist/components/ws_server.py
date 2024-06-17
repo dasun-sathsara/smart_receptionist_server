@@ -7,6 +7,7 @@ from typing import Literal
 from websockets import ConnectionClosed, WebSocketServerProtocol
 
 from .app_state import AppState, ESPState
+from .config import Config
 from .events.event import Event
 from .events.event_listener import EventListener
 
@@ -46,6 +47,29 @@ class WebSocketServer:
             setattr(self.app_state, f"{device_name}_state", ESPState.CONNECTED)
             self.logger.info(f"{device_name} connected.")
 
+    async def stream_audio(self, audio_data: bytes):
+
+        device_name = "esp_s3"
+        websocket = self.connected_devices.get(device_name)
+
+        while self.app_state.is_playing:
+            file_size = len(audio_data)  # Get length directly
+            audio_view = memoryview(audio_data)  # Efficient way to slice bytes
+
+            logging.info(f"Started streaming audio_data to {websocket.remote_address}")
+
+            position = 0
+            while position < file_size:
+                chunk = audio_view[position: position + Config.DEFAULT_CHUNK_SIZE]
+                await websocket.send(chunk)
+
+                # Delay for real-time playback
+                await asyncio.sleep(Config.DEFAULT_CHUNK_SIZE / (Config.SAMPLE_RATE * Config.BYTES_PER_SAMPLE))
+
+                position += Config.DEFAULT_CHUNK_SIZE
+
+            logging.info(f"Finished streaming audio_data to {websocket.remote_address}")
+
     async def handle_events(self, message: WSMessage, websocket: WebSocketServerProtocol):
         if message.event_type == "init":
             await self._handle_init_message(message, websocket)
@@ -76,10 +100,10 @@ class WebSocketServer:
             )
 
     async def handle_audio_chunk(self, message: bytes, websocket: WebSocketServerProtocol):
-        await self.event_listener.enqueue_event(Event(event_type="audio_data", origin="esp", data=message))
+        await self.event_listener.enqueue_event(Event(event_type="audio_data", origin="esp", data={'voice': message}))
 
     async def handle_image_data(self, message: bytes, websocket: WebSocketServerProtocol):
-        await self.event_listener.enqueue_event(Event(event_type="image_data", origin="esp", data=message))
+        await self.event_listener.enqueue_event(Event(event_type="image_data", origin="esp", data={'image': message}))
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
@@ -96,16 +120,16 @@ class WebSocketServer:
                     try:
                         message = json.loads(message.decode("utf-8"))  # No need to decode again
                         message = WSMessage(**message)
-                        asyncio.create_task(self.handle_events(message, websocket))
+                        _ = asyncio.create_task(self.handle_events(message, websocket))
                     except json.JSONDecodeError:
                         self.logger.warning("Invalid JSON message received")
 
                 else:  # Raw data
                     prefix, data = message.split(b":", 1)
                     if prefix == b"AUDIO":
-                        asyncio.create_task(self.handle_audio_chunk(data, websocket))
+                        _ = asyncio.create_task(self.handle_audio_chunk(data, websocket))
                     elif prefix == b"IMAGE":
-                        asyncio.create_task(self.handle_image_data(data, websocket))
+                        _ = asyncio.create_task(self.handle_image_data(data, websocket))
                     else:
                         self.logger.warning("Unknown raw data type received")
 
