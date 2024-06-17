@@ -1,14 +1,13 @@
 import asyncio
 import logging
 import time
-from base64 import b64decode
 from dataclasses import dataclass, field
 from pathlib import Path
 
 
 @dataclass
 class Image:
-    image_data: str  # Base64 encoded image data
+    image_data: bytes  # Raw image data
     faces_detected: bool = False
     image_name: str = field(default=None)
     logger: logging.Logger = field(init=False)
@@ -21,11 +20,9 @@ class Image:
 
     async def save_to_disk(self) -> None:
         try:
-            img_bytes = b64decode(self.image_data)
-
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: self.path.write_bytes(img_bytes))
+            await loop.run_in_executor(None, lambda: self.path.write_bytes((self.image_data)))
 
             self.logger.info(f"Image saved to {self.path}")
-        except Exception as e:
+        except FileNotFoundError as e:
             self.logger.error(f"Error saving image: {e}")

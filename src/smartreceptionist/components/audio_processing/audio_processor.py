@@ -1,4 +1,3 @@
-import io
 import logging
 from asyncio.subprocess import PIPE, create_subprocess_exec
 from shutil import which
@@ -14,11 +13,9 @@ class AudioProcessor:
         if not which("ffmpeg"):
             raise RuntimeError("FFmpeg is not installed or not found in your PATH.")
 
-    async def _transcode(self, input_bytes: io.BytesIO, input_format: str, output_format: str) -> io.BytesIO:
+    async def _transcode(self, input_bytes: bytes, input_format: str, output_format: str) -> bytes:
         """Transcode audio using FFmpeg with PCM/Opus commands (no parameters)."""
         await self._check_ffmpeg_installed()
-
-        output_bytes = io.BytesIO()
 
         if input_format == "pcm" and output_format == "opus":
             command = [
@@ -54,21 +51,19 @@ class AudioProcessor:
             raise ValueError(f"Unsupported conversion: {input_format} to {output_format}")
 
         process = await create_subprocess_exec(*command, stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = await process.communicate(input=input_bytes.getvalue())
+        stdout, stderr = await process.communicate(input=input_bytes)
 
         if process.returncode != 0:
             error_message = stderr.decode().strip()
             raise RuntimeError(f"FFmpeg process failed: {error_message}")
 
-        output_bytes.write(stdout)
-        output_bytes.seek(0)
         self._logger.info(f"Transcoded from {input_format} to {output_format}.")
-        return output_bytes
+        return stdout
 
-    async def transcode_opus_to_pcm(self, input_bytes: io.BytesIO) -> io.BytesIO:
+    async def transcode_opus_to_pcm(self, input_bytes: bytes) -> bytes:
         """Transcode Opus to PCM (16-bit, 44.1kHz, mono)."""
         return await self._transcode(input_bytes, "opus", "pcm")
 
-    async def transcode_pcm_to_opus(self, input_bytes: io.BytesIO) -> io.BytesIO:
+    async def transcode_pcm_to_opus(self, input_bytes: bytes) -> bytes:
         """Transcode PCM to Opus (16-bit, 44.1kHz, mono)."""
         return await self._transcode(input_bytes, "pcm", "opus")

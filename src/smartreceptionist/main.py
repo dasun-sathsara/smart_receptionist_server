@@ -3,15 +3,6 @@ import logging
 import signal
 
 import websockets
-from sinric import SinricPro, SinricProConstants
-from telegram.ext import (
-    ApplicationBuilder,
-    CommandHandler,
-    CallbackQueryHandler,
-    MessageHandler,
-    filters,
-)
-
 from components.app_state import AppState
 from components.config import Config
 from components.events.event_handler import EventHandler
@@ -21,6 +12,14 @@ from components.image_processing.image_processor import ImageProcessor
 from components.image_processing.image_queue import ImageQueue
 from components.telegram_bot import TelegramBot
 from components.ws_server import WebSocketServer
+from sinric import SinricPro, SinricProConstants
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 
 async def initialize_telegram_app(telegram_bot: TelegramBot):
@@ -34,7 +33,9 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     ap_command_handler = CommandHandler("ap", telegram_bot.handle_action_prompt)
 
     # 'ap' message handler
-    ap_message_handler = MessageHandler(filters=filters.TEXT & filters.Regex(r"^ap$"), callback=telegram_bot.handle_action_prompt)
+    ap_message_handler = MessageHandler(
+        filters=filters.TEXT & filters.Regex(r"^ap$"), callback=telegram_bot.handle_action_prompt
+    )
 
     # Voice message handler
     voice_message_handler = MessageHandler(filters=filters.VOICE, callback=telegram_bot.handle_voice_message)
@@ -119,7 +120,9 @@ async def main():
     )
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
     google_home = GoogleHome(event_listener)
-    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(google_home.handle_set_mode, google_home.handle_power_state)
+    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(
+        google_home.handle_set_mode, google_home.handle_power_state
+    )
 
     event_handler = EventHandler(
         telegram_bot=telegram_bot,
@@ -133,7 +136,7 @@ async def main():
     ws_server_process = await initialize_ws_server(ws_server)
 
     # Start the event listener
-    event_listener_task = asyncio.create_task(event_listener.listen(event_handler, image_queue))
+    event_listener_task = asyncio.create_task(event_listener.listen(event_handler))
 
     # Create a shared event loop for signal handling and tasks
     loop = asyncio.get_event_loop()

@@ -6,7 +6,6 @@ from .event import Event
 
 if TYPE_CHECKING:
     from .event_handler import EventHandler
-    from ..image_processing.image_queue import ImageQueue
 
 
 class EventListener:
@@ -15,7 +14,7 @@ class EventListener:
         self.logger = logging.getLogger(__name__)
         self._handler_tasks = set()  # Store references to handler tasks
 
-    async def listen(self, event_handler: "EventHandler", image_queue: "ImageQueue"):
+    async def listen(self, event_handler: "EventHandler"):
         self.logger.info("Event listener started.")
 
         while True:
@@ -24,7 +23,7 @@ class EventListener:
                 event = await self.queue.get()
                 self.logger.info(f"Event received: {event.event_type}")
 
-                task = asyncio.create_task(self._handle_event(event, event_handler, image_queue))
+                task = asyncio.create_task(self._handle_event(event, event_handler))
                 self._handler_tasks.add(task)  # Add the task to the set
                 task.add_done_callback(self._handler_tasks.discard)  # Remove when done
 
@@ -37,21 +36,22 @@ class EventListener:
         self,
         event: Event,
         event_handler: "EventHandler",
-        image_queue: "ImageQueue",
     ):
         self.logger.info(f"Handling event: {event.event_type}")
         if event.event_type == "change_state":
-            await asyncio.create_task(event_handler.handle_ap_state_change(event))
+            await asyncio.create_task(event_handler.handle_ap_state_change_event(event))
         elif event.event_type == "motion_detected":
-            await image_queue.enqueue_image(event.data["image_data"])
-            await asyncio.create_task(event_handler.handle_motion_detected())
+            await asyncio.create_task(event_handler.handle_motion_detected_event())
         elif event.event_type == "person_detected":
-            await image_queue.enqueue_image(event.data["image_data"])
-            await asyncio.create_task(event_handler.handle_person_detected())
-        elif event.event_type == "image":
-            await image_queue.enqueue_image(event.data["image_data"])
-        elif event.event_type == "voice_message":
-            await asyncio.create_task(event_handler.handle_voice_message(event))
+            await asyncio.create_task(event_handler.handle_person_detected_event())
+        elif event.event_type == "audio":
+            await asyncio.create_task(event_handler.handle_audio_event(event))
+
+        # Handling raw data
+        elif event.event_type == "image_data":
+            await asyncio.create_task(event_handler.handle_image_data(event))
+        elif event.event_type == "audio_data":
+            await asyncio.create_task(event_handler.handle_audio_data(event))
 
         # Mark the task as done
         self.queue.task_done()

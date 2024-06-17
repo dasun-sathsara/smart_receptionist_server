@@ -1,5 +1,4 @@
 import asyncio
-import io
 import logging
 from enum import Enum
 from pathlib import Path
@@ -53,8 +52,13 @@ class TelegramBot:
                 await update.message.reply_text("⛔ Unauthorized: You are not authorized to use this bot.")
                 return
 
-            if not self.app_state.esp_s3_state == ESPState.CONNECTED or not self.app_state.esp_cam_state == ESPState.CONNECTED:
-                await update.message.reply_text("🔌 ESP Devices: Not all ESP devices are connected. Please check their status.")
+            if (
+                not self.app_state.esp_s3_state == ESPState.CONNECTED
+                or not self.app_state.esp_cam_state == ESPState.CONNECTED
+            ):
+                await update.message.reply_text(
+                    "🔌 ESP Devices: Not all ESP devices are connected. Please check their status."
+                )
                 return
 
             await update.message.reply_text("🤖 Smart Receptionist Bot started.")
@@ -69,7 +73,7 @@ class TelegramBot:
         try:
             voice_file = await context.bot.get_file(update.message.voice.file_id)
             self.logger.info(f"Received voice message: {voice_file.file_id}")
-            voice_bytes = io.BytesIO(await voice_file.download_as_bytearray())
+            voice_bytes = await voice_file.download_as_bytearray()
 
             await self.event_listener.enqueue_event(Event("voice_message", "tg", {"voice_bytes": voice_bytes}))
 

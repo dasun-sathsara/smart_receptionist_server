@@ -1,11 +1,10 @@
 import asyncio
 import json
 import logging
-from dataclasses import asdict
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Literal
 
-from websockets import WebSocketServerProtocol, ConnectionClosed
+from websockets import ConnectionClosed, WebSocketServerProtocol
 
 from .app_state import AppState, ESPState
 from .events.event import Event
@@ -47,18 +46,40 @@ class WebSocketServer:
             setattr(self.app_state, f"{device_name}_state", ESPState.CONNECTED)
             self.logger.info(f"{device_name} connected.")
 
-    async def process_messages(self, message: WSMessage, websocket: WebSocketServerProtocol):
+    async def handle_events(self, message: WSMessage, websocket: WebSocketServerProtocol):
         if message.event_type == "init":
             await self._handle_init_message(message, websocket)
 
         elif message.event_type == "change_state":
-            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+            await self.event_listener.enqueue_event(
+                Event(event_type=message.event_type, origin="esp", data=message.data)
+            )
+
         elif message.event_type == "person_detected":
-            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+            await self.event_listener.enqueue_event(
+                Event(event_type=message.event_type, origin="esp", data=message.data)
+            )
+
         elif message.event_type == "motion_detected":
-            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+            await self.event_listener.enqueue_event(
+                Event(event_type=message.event_type, origin="esp", data=message.data)
+            )
+
         elif message.event_type == "image":
-            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+            await self.event_listener.enqueue_event(
+                Event(event_type=message.event_type, origin="esp", data=message.data)
+            )
+
+        elif message.event_type == "audio":
+            await self.event_listener.enqueue_event(
+                Event(event_type=message.event_type, origin="esp", data=message.data)
+            )
+
+    async def handle_audio_chunk(self, message: bytes, websocket: WebSocketServerProtocol):
+        await self.event_listener.enqueue_event(Event(event_type="audio_data", origin="esp", data=message))
+
+    async def handle_image_data(self, message: bytes, websocket: WebSocketServerProtocol):
+        await self.event_listener.enqueue_event(Event(event_type="image_data", origin="esp", data=message))
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
@@ -67,14 +88,26 @@ class WebSocketServer:
             async for message in websocket:
                 self.logger.info(f"Received message: {message[:100]}")
 
-                try:
-                    message = WSMessage(**json.loads(message))
-                except json.JSONDecodeError:
-                    self.logger.error(f"Invalid JSON data: {message}")
-                    await websocket.close(code=1007, reason="Invalid JSON")
-                    return
+                if isinstance(message, str):  # Check if it's a string
+                    message = message.encode("utf-8")  # Encode to bytes
 
-                _ = asyncio.create_task(self.process_messages(message, websocket))
+                # Directly check if message starts with JSON opening brace '{'
+                if message.startswith(b"{"):
+                    try:
+                        message = json.loads(message.decode("utf-8"))  # No need to decode again
+                        message = WSMessage(**message)
+                        asyncio.create_task(self.handle_events(message, websocket))
+                    except json.JSONDecodeError:
+                        self.logger.warning("Invalid JSON message received")
+
+                else:  # Raw data
+                    prefix, data = message.split(b":", 1)
+                    if prefix == b"AUDIO":
+                        asyncio.create_task(self.handle_audio_chunk(data, websocket))
+                    elif prefix == b"IMAGE":
+                        asyncio.create_task(self.handle_image_data(data, websocket))
+                    else:
+                        self.logger.warning("Unknown raw data type received")
 
         except ConnectionClosed as e:
             self.logger.warning(f"Connection closed unexpectedly: {e.code} - {e.reason}")

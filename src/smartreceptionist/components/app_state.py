@@ -35,6 +35,9 @@ class AppState:
     person_detected: bool = False
     person_detected_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
+    is_recording: bool = False
+    is_playing: bool = False
+
     ap_sent: bool = False  # Action prompt sent to Telegram
 
     def __setattr__(self, name: str, value: any) -> None:

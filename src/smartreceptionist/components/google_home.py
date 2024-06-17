@@ -23,7 +23,9 @@ class GoogleHome:
     # Light
     def handle_power_state(self, device_id, state):
         asyncio.ensure_future(
-            self.event_listener.enqueue_event(Event("change_state", "ghome", {"device": "light", "state": state.lower()}))
+            self.event_listener.enqueue_event(
+                Event("change_state", "ghome", {"device": "light", "state": state.lower()})
+            )
         )
 
         return True, state
