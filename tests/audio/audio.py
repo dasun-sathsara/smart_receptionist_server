@@ -126,9 +126,9 @@ async def convert_and_save(
 
 
 async def main():
-    input_opus_file = "Rihanna - Stay.opus"  # Replace with your actual file
-    output_pcm_file = "Rihanna - Stay.pcm"
-    output_opus_file = "Rihanna - Stay C.opus"
+    input_opus_file = "../Rihanna - Stay.opus"  # Replace with your actual file
+    output_pcm_file = "../Rihanna - Stay.pcm"
+    output_opus_file = "../Rihanna - Stay C.opus"
 
     # Load input audio_processing from file
     input_opus_bytes = await load_audio_from_file(input_opus_file)
