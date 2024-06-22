@@ -3,7 +3,6 @@ import logging
 
 
 class AudioQueue:
-
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self._audio_chunk_queue = asyncio.Queue()
@@ -19,7 +18,7 @@ class AudioQueue:
             self.logger.warning("Audio chunk queue is full. Dropping chunk.")
 
     async def get_audio_data(self) -> bytes:
-        # Wait for one second
+        # Wait for one second to queue up any incoming data
         await asyncio.sleep(1)
 
         audio_data = b""

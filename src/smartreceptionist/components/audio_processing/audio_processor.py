@@ -23,7 +23,7 @@ class AudioProcessor:
     async def _transcode(self, input_bytes: bytes) -> bytes:
         """Transcode audio using FFmpeg (opus to/from pcm)."""
 
-        await self.check_ffmpeg_installed()  # Asynchronous check
+        await self.check_ffmpeg_installed()
 
         command = [
             "ffmpeg",
@@ -40,7 +40,7 @@ class AudioProcessor:
             "-f",
             "opus",
             "pipe:1",
-        ]  # More readable formatting
+        ]
 
         process = await asyncio.create_subprocess_exec(
             *command, stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -57,7 +57,6 @@ class AudioProcessor:
     async def process_audio(self, input_bytes: bytes, input_format: str, output_format: str) -> bytes:
         """Main audio processing pipeline."""
         try:
-            # Input Format Handling
             audio_segment = (
                 AudioSegment.from_file(io.BytesIO(input_bytes))
                 if input_format == "opus"
@@ -88,15 +87,14 @@ class AudioProcessor:
 
             return bytes_data
 
-        except Exception as e:  # Log detailed error information
+        except Exception as e:
             self.logger.exception(f"Error processing audio: {e}")
-            raise  # Re-raise the exception after logging
 
     def process_audio_data(self, audio_data: np.ndarray) -> np.ndarray:
         """Applies audio processing steps in a clear sequence."""
-        # audio_data = self.increase_volume(audio_data, Config.TARGET_VOLUME)
-        # audio_data = self.normalize_audio(audio_data)
-        # audio_data = self.reduce_noise(audio_data, Config.NOISE_FLOOR)
+        audio_data = self.increase_volume(audio_data, Config.TARGET_VOLUME)
+        audio_data = self.normalize_audio(audio_data)
+        audio_data = self.reduce_noise(audio_data, Config.NOISE_FLOOR)
         return audio_data
 
     @staticmethod

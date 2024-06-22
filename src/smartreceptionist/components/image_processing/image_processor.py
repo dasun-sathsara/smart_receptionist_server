@@ -57,7 +57,8 @@ class ImageProcessor:
         processed_image = Image(image_data=buffer.tobytes(), faces_detected=faces_detected)
         return processed_image
 
-    def preprocess_image(self, image, clahe_clip=2.0, clahe_grid=(8, 8), blur_kernel=(3, 3)):
+    @staticmethod
+    def preprocess_image(image, clahe_clip=2.0, clahe_grid=(8, 8), blur_kernel=(3, 3)):
         # Convert to LAB color space
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
@@ -77,7 +78,8 @@ class ImageProcessor:
 
         return denoised
 
-    def postprocess_image(self, enhanced_image, sharpen_amount=0.5, saturation_factor=1.2):
+    @staticmethod
+    def postprocess_image(enhanced_image, sharpen_amount=0.5, saturation_factor=1.2):
         # Sharpen the image using an unsharp mask
         gaussian = cv2.GaussianBlur(enhanced_image, (0, 0), 2.0)
         sharpened = cv2.addWeighted(enhanced_image, 1 + sharpen_amount, gaussian, -sharpen_amount, 0)

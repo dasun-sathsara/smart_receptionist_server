@@ -76,7 +76,7 @@ class EventHandler:
             new_state = state_enum_class(new_state_str)
             setattr(self.app_state, f"{device}_state", new_state)
 
-            if not self.app_state.ap_sent:
+            if not self.app_state.home_control_prompt_sent:
                 if new_state == GateState.OPEN:
                     await self.telegram_bot.send_message("🚧 Gate is now open.")
                 elif new_state == GateState.CLOSED:

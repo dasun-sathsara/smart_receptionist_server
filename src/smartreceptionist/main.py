@@ -29,40 +29,23 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     bot_token = Config.BOT_TOKEN
     tg_app = ApplicationBuilder().token(bot_token).build()
 
-    # /start command handler
-    start_handler = CommandHandler("start", telegram_bot.start)
+    # Command handlers
+    tg_app.add_handler(CommandHandler("start", telegram_bot.start))
+    tg_app.add_handler(CommandHandler("menu", telegram_bot.send_main_menu))
 
-    # /ap command handler
-    ap_command_handler = CommandHandler("ap", telegram_bot.handle_action_prompt)
-
-    # 'ap' message handler
-    ap_message_handler = MessageHandler(
-        filters=filters.TEXT & filters.Regex(r"^ap$"), callback=telegram_bot.handle_action_prompt
-    )
-
-    # Voice message handler
-    voice_message_handler = MessageHandler(filters=filters.VOICE, callback=telegram_bot.handle_voice_message)
-
-    # Handle messages that starts with cmd
-    cmd_message_handler = MessageHandler(
-        filters=filters.TEXT & filters.Regex(r"^cmd"), callback=telegram_bot.handle_cmd_message
-    )
+    # Message handlers
+    tg_app.add_handler(MessageHandler(filters.VOICE, telegram_bot.handle_voice_message))
 
     # Callback query handler
-    action_prompt_handler = CallbackQueryHandler(telegram_bot.handle_callback_query)
+    tg_app.add_handler(CallbackQueryHandler(telegram_bot.handle_callback_query))
 
-    tg_app.add_handler(start_handler)
-    tg_app.add_handler(action_prompt_handler)
-    tg_app.add_handler(ap_command_handler)
-    tg_app.add_handler(ap_message_handler)
-    tg_app.add_handler(cmd_message_handler)
-    tg_app.add_handler(voice_message_handler)
+    # Catch all handler
+    tg_app.add_handler(MessageHandler(filters.ALL, telegram_bot.handle_unrecognized_message))
 
     # Initialize the bot
     await tg_app.initialize()
     await tg_app.start()
     await tg_app.updater.start_polling()
-
     return tg_app
 
 
@@ -132,9 +115,7 @@ async def main():
 
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
     google_home = GoogleHome(event_listener)
-    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(
-        google_home.handle_set_mode, google_home.handle_power_state
-    )
+    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(google_home.handle_set_mode, google_home.handle_power_state)
 
     event_handler = EventHandler(
         telegram_bot=telegram_bot,

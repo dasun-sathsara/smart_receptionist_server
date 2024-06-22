@@ -83,10 +83,10 @@ class WebSocketServer:
         if message.event_type in ("change_state", "person_detected", "motion_detected", "image", "audio"):
             await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
 
-    async def handle_audio_chunk(self, message: bytes, websocket: WebSocketServerProtocol):
+    async def handle_audio_chunk(self, message: bytes, _: WebSocketServerProtocol):
         await self.event_listener.enqueue_event(Event(event_type="audio_data", origin="esp", data={"audio": message}))
 
-    async def handle_image_data(self, message: bytes, websocket: WebSocketServerProtocol):
+    async def handle_image_data(self, message: bytes, _: WebSocketServerProtocol):
         await self.event_listener.enqueue_event(Event(event_type="image_data", origin="esp", data={"image": message}))
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
@@ -102,7 +102,7 @@ class WebSocketServer:
                     try:
                         # Log the received message
                         self.logger.info(f"Received message: {message.decode('utf-8')}")
-                        message = json.loads(message.decode("utf-8"))  # No need to decode again
+                        message = json.loads(message.decode("utf-8"))
                         message = WSMessage(**message)
                         _ = asyncio.create_task(self.handle_events(message, websocket))
                     except json.JSONDecodeError:
