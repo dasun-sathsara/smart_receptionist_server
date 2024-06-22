@@ -27,9 +27,13 @@ class Config:
     GATE_ID = os.getenv("GATE_ID")
     LIGHT_ID = os.getenv("LIGHT_ID")
 
-    SAMPLE_RATE = 44100
     BYTES_PER_SAMPLE = 2
     DEFAULT_CHUNK_SIZE = 1024
+
+    TARGET_VOLUME = -16
+    NOISE_FLOOR = -30
+    SAMPLE_RATE = 48000
+    BIT_DEPTH = 16
 
     @staticmethod
     def validate():

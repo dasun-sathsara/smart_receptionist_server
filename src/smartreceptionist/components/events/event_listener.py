@@ -19,10 +19,7 @@ class EventListener:
 
         while True:
             try:
-                self.logger.info("Waiting for an event...")
                 event = await self.queue.get()
-                self.logger.info(f"Event received: {event.event_type}")
-
                 task = asyncio.create_task(self._handle_event(event, event_handler))
                 self._handler_tasks.add(task)  # Add the task to the set
                 task.add_done_callback(self._handler_tasks.discard)  # Remove when done
@@ -37,7 +34,10 @@ class EventListener:
         event: Event,
         event_handler: "EventHandler",
     ):
-        self.logger.info(f"Handling event: {event.event_type}")
+        # Do not log if the event is audio_data as it will clutter the logs
+        if event.event_type != "audio_data":
+            self.logger.info(f"Handling event: {event.event_type}")
+
         if event.event_type == "change_state":
             await asyncio.create_task(event_handler.handle_ap_state_change_event(event))
         elif event.event_type == "motion_detected":
@@ -52,6 +52,10 @@ class EventListener:
             await asyncio.create_task(event_handler.handle_image_data(event))
         elif event.event_type == "audio_data":
             await asyncio.create_task(event_handler.handle_audio_data(event))
+
+        # Temp
+        elif event.event_type == "tg_cmd":
+            await asyncio.create_task(event_handler.handle_telegram_command(event))
 
         # Mark the task as done
         self.queue.task_done()

@@ -52,13 +52,8 @@ class TelegramBot:
                 await update.message.reply_text("⛔ Unauthorized: You are not authorized to use this bot.")
                 return
 
-            if (
-                not self.app_state.esp_s3_state == ESPState.CONNECTED
-                or not self.app_state.esp_cam_state == ESPState.CONNECTED
-            ):
-                await update.message.reply_text(
-                    "🔌 ESP Devices: Not all ESP devices are connected. Please check their status."
-                )
+            if not self.app_state.esp_s3_state == ESPState.CONNECTED or not self.app_state.esp_cam_state == ESPState.CONNECTED:
+                await update.message.reply_text("🔌 ESP Devices: Not all ESP devices are connected. Please check their status.")
                 return
 
             await update.message.reply_text("🤖 Smart Receptionist Bot started.")
@@ -69,10 +64,22 @@ class TelegramBot:
             self.logger.exception(f"Unexpected error during /start: {e}")
             await update.message.reply_text("An error occurred. Please try again later.")
 
+    async def handle_cmd_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        action = update.message.text.split("_")[1]
+
+        if action == "1":
+            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "start_recording"}))
+        elif action == "2":
+            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "stop_recording"}))
+        elif action == "3":
+            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "start_playing"}))
+        elif action == "4":
+            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "stop_playing"}))
+
     async def handle_voice_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             voice_file = await context.bot.get_file(update.message.voice.file_id)
-            self.logger.info(f"Received voice message: {voice_file.file_id}")
+            self.logger.info("Received voice message.")
             voice_bytes = await voice_file.download_as_bytearray()
 
             await self.event_listener.enqueue_event(Event("audio_data", "tg", {"audio": voice_bytes}))

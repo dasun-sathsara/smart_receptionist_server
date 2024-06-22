@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 
 
 class AudioQueue:
@@ -19,19 +18,15 @@ class AudioQueue:
         except asyncio.QueueFull:
             self.logger.warning("Audio chunk queue is full. Dropping chunk.")
 
-    async def get_audio_data(self, timeout: Optional[float] = None) -> bytes:
+    async def get_audio_data(self) -> bytes:
         # Wait for one second
         await asyncio.sleep(1)
 
         audio_data = b""
 
-        while True:
-            try:
-                audio_chunk = await asyncio.wait_for(self._audio_chunk_queue.get(), timeout)
-                audio_data += audio_chunk
-                self._audio_chunk_queue.task_done()
-            except asyncio.TimeoutError:
-                break
+        while not self._audio_chunk_queue.empty():
+            chunk = await self._audio_chunk_queue.get()
+            audio_data += chunk
 
         self.logger.debug(f"Retrieved {len(audio_data)} bytes of audio data.")
         return audio_data

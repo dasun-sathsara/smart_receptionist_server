@@ -3,6 +3,15 @@ import logging
 import signal
 
 import websockets
+from sinric import SinricPro, SinricProConstants
+from telegram.ext import (
+    ApplicationBuilder,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
+
 from components.app_state import AppState
 from components.audio_processing.audio_processor import AudioProcessor
 from components.audio_processing.audio_queue import AudioQueue
@@ -14,14 +23,6 @@ from components.image_processing.image_processor import ImageProcessor
 from components.image_processing.image_queue import ImageQueue
 from components.telegram_bot import TelegramBot
 from components.ws_server import WebSocketServer
-from sinric import SinricPro, SinricProConstants
-from telegram.ext import (
-    ApplicationBuilder,
-    CallbackQueryHandler,
-    CommandHandler,
-    MessageHandler,
-    filters,
-)
 
 
 async def initialize_telegram_app(telegram_bot: TelegramBot):
@@ -42,6 +43,11 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     # Voice message handler
     voice_message_handler = MessageHandler(filters=filters.VOICE, callback=telegram_bot.handle_voice_message)
 
+    # Handle messages that starts with cmd
+    cmd_message_handler = MessageHandler(
+        filters=filters.TEXT & filters.Regex(r"^cmd"), callback=telegram_bot.handle_cmd_message
+    )
+
     # Callback query handler
     action_prompt_handler = CallbackQueryHandler(telegram_bot.handle_callback_query)
 
@@ -49,6 +55,7 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     tg_app.add_handler(action_prompt_handler)
     tg_app.add_handler(ap_command_handler)
     tg_app.add_handler(ap_message_handler)
+    tg_app.add_handler(cmd_message_handler)
     tg_app.add_handler(voice_message_handler)
 
     # Initialize the bot
@@ -72,7 +79,7 @@ async def initialize_ws_server(ws_server: WebSocketServer):
     # ws_server_process = await websockets.serve(ws_server.register, "x.dasunsathsara.com", 443, ssl=ssl_context)
 
     # for local development
-    ws_server_process = await websockets.serve(ws_server.handle_new_connection, "localhost", 8765)
+    ws_server_process = await websockets.serve(ws_server.handle_new_connection, "0.0.0.0", 8765)
 
     return ws_server_process
 
