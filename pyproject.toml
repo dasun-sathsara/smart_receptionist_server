@@ -11,6 +11,8 @@ dependencies = [
     "sinricpro @ file:///E:/Dev/sinric",
     "omegaconf>=2.3.0",
     "aiofiles>=23.2.1",
+    "pydub>=0.25.1",
+    "soundfile>=0.12.1",
 ]
 
 requires-python = ">=3.12"
@@ -23,10 +25,7 @@ license = { text = "MIT" }
 distribution = false
 
 [tool.pdm.dev-dependencies]
-dev = [
-    "rich>=13.7.1",
-    "ruff>=0.4.8",
-]
+dev = ["rich>=13.7.1", "ruff>=0.4.8"]
 
 [tool.ruff]
 # Exclude a variety of commonly ignored directories.

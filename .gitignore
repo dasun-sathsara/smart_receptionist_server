@@ -26,9 +26,11 @@ share/python-wheels/
 *.egg
 MANIFEST
 
-tests/media
 tests/test_images
 
+src/file_merger.log
+src/main.py
+src/merged_text.txt
 src/smartreceptionist/media
 
 # PyInstaller

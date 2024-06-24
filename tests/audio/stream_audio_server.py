@@ -61,7 +61,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="WebSocket Audio Streaming Server")
     parser.add_argument("filename", help="Path to the PCM audio file")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind the server to")
-    parser.add_argument("--port", type=int, default=8080, help="Port to bind the server to")
+    parser.add_argument("--port", type=int, default=8765, help="Port to bind the server to")
     parser.add_argument("--chunk-size", type=int, default=DEFAULT_CHUNK_SIZE, help="Chunk size in bytes")
 
     args = parser.parse_args()
