@@ -73,9 +73,9 @@ async def simulate_motion_detection():
                             msg_data = json.loads(message)
                             if msg_data["event_type"] == "capture_image":
                                 await asyncio.sleep(1)
-                                # with open("test_images/test2.jpg", "rb") as f:
-                                #     image_bytes = f.read()
-                                #     await websocket.send(b"IMAGE:" + image_bytes)
+                                with open("test_images/test2.jpg", "rb") as f:
+                                    image_bytes = f.read()
+                                    await websocket.send(b"IMAGE:" + image_bytes)
                                 logger.info("[ESP CAM] Sent an image in response to capture_image event")
                         except json.JSONDecodeError:
                             logger.warning("[ESP CAM] Received message is not valid JSON")

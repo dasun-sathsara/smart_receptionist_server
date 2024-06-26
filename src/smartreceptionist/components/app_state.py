@@ -35,6 +35,9 @@ class AppState:
     person_detected: bool = False
     person_detected_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
+    motion_detected: bool = False
+    motion_detected_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
+
     is_recording: bool = False
     is_playing: bool = False
 
@@ -45,7 +48,7 @@ class AppState:
 
         super().__setattr__(name, value)
 
-        if name == "person_detected":
+        if name == "person_detected" or name == "motion_detected":
             event_name = name + "_event"
         else:
             event_name = name + "_changed_event"

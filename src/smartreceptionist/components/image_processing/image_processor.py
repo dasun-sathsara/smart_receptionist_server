@@ -27,7 +27,7 @@ class ImageProcessor:
             self.logger.error("Failed to decode image from raw data.")
             raise ValueError("Invalid image data")
 
-        results = self.model.predict(source=image, save=False, max_det=5)
+        results = self.model.predict(source=image, save=False, max_det=3)
 
         faces_detected = False
         for result in results:
@@ -58,7 +58,19 @@ class ImageProcessor:
         return processed_image
 
     @staticmethod
-    def preprocess_image(image, clahe_clip=2.0, clahe_grid=(8, 8), blur_kernel=(3, 3)):
+    def apply_processing(image_data) -> bytes:
+        image_array = np.frombuffer(image_data, dtype=np.uint8)
+        image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+        preprocessed = ImageProcessor.preprocess_image(image)
+        final_image = ImageProcessor.postprocess_image(preprocessed)
+
+        _, buffer = cv2.imencode(".jpg", final_image)
+
+        return buffer.tobytes()
+
+    @staticmethod
+    def preprocess_image(image, clahe_clip=2.0, clahe_grid=(6, 6), blur_kernel=(3, 3)):
         # Convert to LAB color space
         lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
         l, a, b = cv2.split(lab)
@@ -79,7 +91,7 @@ class ImageProcessor:
         return denoised
 
     @staticmethod
-    def postprocess_image(enhanced_image, sharpen_amount=0.5, saturation_factor=1.2):
+    def postprocess_image(enhanced_image, sharpen_amount=0.5, saturation_factor=1.1):
         # Sharpen the image using an unsharp mask
         gaussian = cv2.GaussianBlur(enhanced_image, (0, 0), 2.0)
         sharpened = cv2.addWeighted(enhanced_image, 1 + sharpen_amount, gaussian, -sharpen_amount, 0)

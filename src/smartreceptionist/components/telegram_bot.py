@@ -211,23 +211,23 @@ class TelegramBot:
 
     async def _handle_audio_control_prompt_response(self, query: CallbackQuery):
         if query.data == Actions.START_RECORDING:
-            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "start_recording"}))
+            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "start_recording"}))
             await query.edit_message_text("🔴 Recording started", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.STOP_RECORDING:
-            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "stop_recording"}))
+            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "stop_recording"}))
             await query.edit_message_text("⏹️ Recording stopped", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.START_PLAYBACK:
-            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "start_playing"}))
+            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "start_playing"}))
             await query.edit_message_text("▶️ Playback started", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.STOP_PLAYBACK:
-            await self.event_listener.enqueue_event(Event("tg_cmd", "tg", {"action": "stop_playing"}))
+            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "stop_playing"}))
             await query.edit_message_text("⏹️ Playback stopped", reply_markup=await self._build_audio_control_menu())
 
     async def _handle_camera_control_prompt_response(self, query: CallbackQuery):
         if query.data == Actions.CAPTURE_IMAGE:
             await query.answer("📸 Capturing image...")
             await query.edit_message_text("📸 Capturing image...")
-            await self.event_listener.enqueue_event(Event("capture_image", "tg", {}))
+            await self.event_listener.enqueue_event(Event("camera", "tg", {"action": "capture_image"}))
 
     async def _handle_home_control_prompt_response(self, query: CallbackQuery):
         try:
@@ -343,32 +343,30 @@ class TelegramBot:
         else:
             self.logger.error("No valid images to send.")
 
+    async def send_image(self, image: bytes):
+        if not self.bot:
+            self.logger.error("Bot instance not found.")
+            return
+
+        try:
+            await self.bot.send_photo(self.admin_user_id, photo=image)
+            self.logger.info("Image sent successfully.")
+
+        except TelegramError as e:
+            self.logger.error(f"Error sending image: {e}")
+
     async def send_access_control_prompt(self):
         if not self.bot:
             self.logger.error("Bot instance not found.")
             return
 
         try:
-            if "acp" in self.prompt_message_ids:
-                try:
-                    await self.bot.delete_message(
-                        chat_id=self.admin_user_id,
-                        message_id=self.prompt_message_ids["acp"],
-                    )
-                    self.prompt_message_ids.pop("acp")
-
-                except TelegramError as e:
-                    self.logger.error(f"Error deleting previous access prompt: {e}")
-
-            message = await self.bot.send_message(
+            await self.bot.send_message(
                 self.admin_user_id,
                 "🚶‍♂️ Access Request: Allow or deny access?",
                 reply_markup=await self._build_access_control_prompt(),
             )
-
             self.logger.info("Access control prompt sent.")
-            self.prompt_message_ids["acp"] = message.message_id
-
         except TelegramError as e:
             self.logger.error(f"Error sending access control prompt: {e}")
 

@@ -9,6 +9,7 @@ from ..audio_processing.audio_processor import AudioProcessor
 from ..audio_processing.audio_queue import AudioQueue
 from ..config import Config
 from ..events.event import Event
+from ..image_processing.image_processor import ImageProcessor
 from ..image_processing.image_queue import ImageQueue
 from ..telegram_bot import TelegramBot
 from ..ws_server import WebSocketServer, WSMessage
@@ -35,37 +36,44 @@ class EventHandler:
         self.logger = logging.getLogger(__name__)
 
     async def handle_audio_event(self, event: Event):
-        event_type = event.data["type"]
         action = event.data["action"]
+        origin = event.origin
 
-        if event_type == "play":
-            if action == "start":
+        if action == "start_recording":
+            self.app_state.is_recording = True
+            if origin == "tg":
+                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "start_recording"}))
+
+        elif action == "stop_recording":
+            self.app_state.is_recording = False
+            if origin == "tg":
+                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_recording"}))
+
+            pcm_data = await self.audio_queue.get_audio_data()
+            if pcm_data:
                 try:
-                    self.app_state.is_playing = True
-                    latest_audio_path = await get_latest_telegram_audio()
-                    await self.ws_server.stream_audio(latest_audio_path)
-                except FileNotFoundError as e:
-                    self.logger.error(f"Error playing audio: {e}")
-                    await self.telegram_bot.send_message(f"Error playing audio: {e}")
-            elif action == "stop":
-                self.app_state.is_playing = False
-        elif event_type == "record":
-            if action == "start":
-                self.app_state.is_recording = True
-            elif action == "stop":
-                self.app_state.is_recording = False
-                pcm_data = await self.audio_queue.get_audio_data()
-                if pcm_data:
-                    try:
-                        opus_data = await self.audio_processor.process_audio(pcm_data, "pcm", "opus")
-                        await save_audio_file(opus_data, "esp")
-                        self.logger.info("Audio processed and saved.")
-                        await self.telegram_bot.send_voice_message(opus_data)
-                    except Exception as e:
-                        self.logger.error(f"Error processing and sending audio: {e}")
-                        await self.telegram_bot.send_message("An error occurred while processing your voice message.")
-                else:
-                    self.logger.warning("No audio data received for recording.")
+                    opus_data = await self.audio_processor.process_audio(pcm_data, "pcm", "opus")
+                    await save_audio_file(opus_data, "esp")
+                    self.logger.info("Audio processed and saved.")
+                    await self.telegram_bot.send_voice_message(opus_data)
+                except Exception as e:
+                    self.logger.error(f"Error processing and sending audio: {e}")
+                    await self.telegram_bot.send_message("An error occurred while processing your voice message.")
+            else:
+                self.logger.warning("No audio data received for recording.")
+
+        elif action == "start_playing":
+            self.app_state.is_playing = True
+            if origin == "tg":
+                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "start_playing"}))
+
+            latest_audio_path = await get_latest_telegram_audio()
+            await self.ws_server.stream_audio(latest_audio_path)
+
+        elif action == "stop_playing":
+            self.app_state.is_playing = False
+            if origin == "tg":
+                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_playing"}))
 
     async def handle_ap_state_change_event(self, event: Event):
         if event.origin == "esp":
@@ -117,8 +125,14 @@ class EventHandler:
             except Exception as e:
                 self.logger.error(f"Error sending message to WebSocket: {e}")
 
+    async def handle_camera_event(self, event: Event):
+        if event.data["action"] == "capture_image":
+            await self.ws_server.send("esp_cam", WSMessage(event_type="capture_image", data={}))
+
     async def handle_motion_detected_event(self):
-        # await asyncio.wait_for(self.image_queue.dequeue_processed_image(), timeout=30)
+        self.app_state.motion_detected = True
+
+        await asyncio.wait_for(self.image_queue.dequeue_processed_image(), timeout=30)
 
         for interval in [3, 6, 9]:
             if await self._wait_for_detection_or_timeout(interval):
@@ -200,20 +214,10 @@ class EventHandler:
             self.logger.info("Audio was processed and saved.")
 
     async def handle_image_data(self, event: Event):
-        await self.image_queue.enqueue_image(event.data["image"])
-
-    async def handle_telegram_command(self, event):
-        action = event.data["action"]
-
-        if action == "start_recording":
-            await self.ws_server.send("esp_s3", WSMessage(event_type="start_recording", data={}))
-            await self.handle_audio_event(Event(event_type="record", origin="tg", data={"type": "record", "action": "start"}))
-        elif action == "stop_recording":
-            await self.ws_server.send("esp_s3", WSMessage(event_type="stop_recording", data={}))
-            await self.handle_audio_event(Event(event_type="record", origin="tg", data={"type": "record", "action": "stop"}))
-        elif action == "start_playing":
-            await self.ws_server.send("esp_s3", WSMessage(event_type="start_playing", data={}))
-            await self.handle_audio_event(Event(event_type="play", origin="tg", data={"type": "play", "action": "start"}))
-        elif action == "stop_playing":
-            await self.ws_server.send("esp_s3", WSMessage(event_type="stop_playing", data={}))
-            await self.handle_audio_event(Event(event_type="play", origin="tg", data={"type": "play", "action": "stop"}))
+        if self.app_state.motion_detected:
+            await self.image_queue.enqueue_image(event.data["image"])
+        else:
+            # Process the image and send the result to the Telegram bot
+            image = ImageProcessor.apply_processing(event.data["image"])
+            await self.telegram_bot.send_image(image)
+            self.logger.info("Image processed and sent to Telegram.")

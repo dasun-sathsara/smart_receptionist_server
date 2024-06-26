@@ -42,7 +42,7 @@ async def websocket_client():
                     await websocket.send(unsolicited_message)
                     logger.info("[ESPS3] Sent unsolicited message")
 
-                unsolicited_task = asyncio.create_task(send_unsolicited_message())
+                # unsolicited_task = asyncio.create_task(send_unsolicited_message())
 
                 async def handle_change_state(event: Dict):
                     state = event["data"]["state"]
@@ -67,12 +67,12 @@ async def websocket_client():
                             logger.error(f"[ESPS3] Received invalid JSON: {message}")
                 except websockets.ConnectionClosed:
                     logger.info("[ESPS3] Server disconnected. Attempting to reconnect...")
-                finally:
-                    unsolicited_task.cancel()
+                # finally:
+                # unsolicited_task.cancel()
 
         except (OSError, websockets.InvalidURI, websockets.InvalidHandshake, ConnectionRefusedError) as e:
             if isinstance(e, ConnectionRefusedError):
-                logger.error(f"[ESP CAM] Connection refused. Is the server running? Retrying in 5 seconds...")
+                logger.error("[ESP CAM] Connection refused. Is the server running? Retrying in 5 seconds...")
             else:
                 logger.error(f"[ESP CAM] Failed to connect: {e}. Retrying in 5 seconds...")
             await asyncio.sleep(5)

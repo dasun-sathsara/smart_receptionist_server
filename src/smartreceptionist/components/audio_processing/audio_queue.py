@@ -13,7 +13,6 @@ class AudioQueue:
 
         try:
             await self._audio_chunk_queue.put(audio_chunk)
-            self.logger.debug("Added audio chunk to queue.")
         except asyncio.QueueFull:
             self.logger.warning("Audio chunk queue is full. Dropping chunk.")
 

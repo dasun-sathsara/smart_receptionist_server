@@ -46,16 +46,14 @@ class EventListener:
             await asyncio.create_task(event_handler.handle_person_detected_event())
         elif event.event_type == "audio":
             await asyncio.create_task(event_handler.handle_audio_event(event))
+        elif event.event_type == "camera":
+            await asyncio.create_task(event_handler.handle_camera_event(event))
 
         # Handling raw data
         elif event.event_type == "image_data":
             await asyncio.create_task(event_handler.handle_image_data(event))
         elif event.event_type == "audio_data":
             await asyncio.create_task(event_handler.handle_audio_data(event))
-
-        # Temp
-        elif event.event_type == "tg_cmd":
-            await asyncio.create_task(event_handler.handle_telegram_command(event))
 
         # Mark the task as done
         self.queue.task_done()
