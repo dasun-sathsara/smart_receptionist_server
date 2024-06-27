@@ -69,7 +69,9 @@ class WebSocketServer:
                         break  # End of file
                     await websocket.send(chunk)
                     # Delay for real-time playback
-                    await asyncio.sleep(Config.DEFAULT_CHUNK_SIZE / (Config.SAMPLE_RATE * Config.BYTES_PER_SAMPLE))
+                    # await asyncio.sleep(Config.DEFAULT_CHUNK_SIZE / (Config.SAMPLE_RATE * Config.BYTES_PER_SAMPLE))
+                    await asyncio.sleep(0.01)
+            # await self.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_playing"}))
             self.logger.info(f"Finished streaming audio to {websocket.remote_address}")
         except ConnectionClosed:
             self.logger.warning(f"Connection closed by client {websocket.remote_address} during audio streaming.")
