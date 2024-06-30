@@ -169,6 +169,7 @@ class EventHandler:
 
     async def handle_person_detected_event(self):
         self.app_state.person_detected = True
+        await self.telegram_bot.send_message("👤 Person detected at the gate!")
 
         if await self.image_queue.dequeue_processed_image() and self.image_queue.num_of_face_detected_images >= 1:
             self.logger.info("Person confirmed at the gate!")

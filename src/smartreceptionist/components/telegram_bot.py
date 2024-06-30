@@ -7,7 +7,7 @@ from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, InputMedia
 from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import ContextTypes
 
-from .app_state import AppState, ESPState, GateState, LightState
+from .app_state import AppState, GateState, LightState
 from .events.event import Event
 from .events.event_listener import EventListener
 
@@ -118,9 +118,9 @@ class TelegramBot:
                 await update.message.reply_text("⛔ Unauthorized: You are not authorized to use this bot.")
                 return
 
-            if not self.app_state.esp_s3_state == ESPState.CONNECTED or not self.app_state.esp_cam_state == ESPState.CONNECTED:
-                await update.message.reply_text("🔌 ESP Devices: Not all ESP devices are connected. Please check their status.")
-                return
+            # if not self.app_state.esp_s3_state == ESPState.CONNECTED or not self.app_state.esp_cam_state == ESPState.CONNECTED:
+            #     await update.message.reply_text("🔌 ESP Devices: Not all ESP devices are connected. Please check their status.")
+            #     return
 
             # Delete the previous start or menu message
             await self.delete_user_sent_messages(context)

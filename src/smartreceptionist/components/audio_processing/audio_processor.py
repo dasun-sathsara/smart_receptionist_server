@@ -6,6 +6,7 @@ from shutil import which
 import numpy as np
 import soundfile as sf
 from pydub import AudioSegment
+from scipy import signal
 
 from ..config import Config
 
@@ -92,6 +93,15 @@ class AudioProcessor:
 
     def process_audio_data(self, audio_data: np.ndarray) -> np.ndarray:
         """Applies audio processing steps in a clear sequence."""
+
+        # Apply high-pass filter
+        sos = signal.butter(10, 80, "hp", fs=Config.SAMPLE_RATE, output="sos")
+        audio_data = signal.sosfilt(sos, audio_data)
+
+        # Apply low-pass filter
+        sos = signal.butter(10, 3000, "lp", fs=Config.SAMPLE_RATE, output="sos")
+        audio_data = signal.sosfilt(sos, audio_data)
+
         audio_data = self.increase_volume(audio_data, Config.TARGET_VOLUME)
         audio_data = self.normalize_audio(audio_data)
         audio_data = self.reduce_noise(audio_data, Config.NOISE_FLOOR)
