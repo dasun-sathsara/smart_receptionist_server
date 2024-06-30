@@ -222,3 +222,11 @@ class EventHandler:
             image = ImageProcessor.apply_processing(event.data["image"])
             await self.telegram_bot.send_image(image)
             self.logger.info("Image processed and sent to Telegram.")
+
+    async def handle_access_control_event(self, event: Event):
+        action = event.data["action"]
+
+        if action == "grant_access":
+            await self.ws_server.send("esp_cam", WSMessage(event_type="grant_access", data={}))
+        elif action == "deny_access":
+            await self.ws_server.send("esp_cam", WSMessage(event_type="deny_access", data={}))

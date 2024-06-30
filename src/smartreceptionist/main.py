@@ -39,37 +39,25 @@ async def initialize_telegram_app(telegram_bot: TelegramBot):
     # Callback query handler
     tg_app.add_handler(CallbackQueryHandler(telegram_bot.handle_callback_query))
 
-    # Catch all handler
-    tg_app.add_handler(MessageHandler(filters.ALL, telegram_bot.handle_unrecognized_message))
+    # Custom keyboard handler
+    tg_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, telegram_bot.handle_unrecognized_message))
 
     # Initialize the bot
     await tg_app.initialize()
     await tg_app.start()
     await tg_app.updater.start_polling()
+
     return tg_app
 
 
 async def initialize_ws_server(ws_server: WebSocketServer):
-    # for production
-
-    # ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-
-    # ssl_context.load_cert_chain(
-    #     certfile="/etc/letsencrypt/live/x.dasunsathsara.com/fullchain.pem",
-    #     keyfile="/etc/letsencrypt/live/x.dasunsathsara.com/privkey.pem",
-    # )
-
-    # ws_server_process = await websockets.serve(ws_server.register, "x.dasunsathsara.com", 443, ssl=ssl_context)
-
-    # for local development
+    # For local development
     ws_server_process = await websockets.serve(ws_server.handle_new_connection, "0.0.0.0", 8765)
-
     return ws_server_process
 
 
 async def initialize_sinric_pro(set_mode, set_power_state):
     callbacks = {SinricProConstants.SET_MODE: set_mode, SinricProConstants.SET_POWER_STATE: set_power_state}
-
     sinric_pro_client = SinricPro(
         Config.SINRIC_APP_KEY,
         [Config.GATE_ID, Config.LIGHT_ID],
@@ -83,11 +71,8 @@ async def initialize_sinric_pro(set_mode, set_power_state):
     sinric_pro_client.event_handler.raise_event(
         Config.GATE_ID,
         SinricProConstants.SET_MODE,
-        data={
-            SinricProConstants.MODE: SinricProConstants.CLOSE,
-        },
+        data={SinricProConstants.MODE: SinricProConstants.CLOSE},
     )
-
     sinric_pro_client.event_handler.raise_event(
         Config.LIGHT_ID,
         SinricProConstants.SET_POWER_STATE,
@@ -101,6 +86,7 @@ async def initialize_sinric_pro(set_mode, set_power_state):
 async def main():
     Config.validate()
 
+    # Initialize components
     app_state = AppState()
     event_listener = EventListener()
     image_processor = ImageProcessor()
@@ -112,10 +98,17 @@ async def main():
     )
     audio_queue = AudioQueue()
     audio_processor = AudioProcessor()
-
     ws_server = WebSocketServer(event_listener=event_listener, app_state=app_state)
     google_home = GoogleHome(event_listener)
-    sinric_pro_client, sinric_pro_task = await initialize_sinric_pro(google_home.handle_set_mode, google_home.handle_power_state)
+
+    # Concurrent initialization of components
+    init_tasks = [
+        initialize_telegram_app(telegram_bot),
+        initialize_ws_server(ws_server),
+        initialize_sinric_pro(google_home.handle_set_mode, google_home.handle_power_state),
+    ]
+
+    tg_app, ws_server_process, (sinric_pro_client, sinric_pro_task) = await asyncio.gather(*init_tasks)
 
     event_handler = EventHandler(
         telegram_bot=telegram_bot,
@@ -126,9 +119,6 @@ async def main():
         audio_queue=audio_queue,
         audio_processor=audio_processor,
     )
-
-    tg_app = await initialize_telegram_app(telegram_bot)
-    ws_server_process = await initialize_ws_server(ws_server)
 
     # Start the event listener
     event_listener_task = asyncio.create_task(event_listener.listen(event_handler))
@@ -148,29 +138,27 @@ async def main():
     # Wait for the stop signal
     await stop_application
 
-    # Cancel the Sinric Pro task
+    # Cleanup tasks
+    logging.info("Cleaning up...")
+
+    # Cancel running tasks
     sinric_pro_task.cancel()
-
-    # Cancel the event listener task
     event_listener_task.cancel()
-    try:
-        await event_listener_task
-    except asyncio.CancelledError:
-        pass
 
-    # Close the websocket server
+    # Close WebSocket server
     ws_server_process.close()
     await ws_server_process.wait_closed()
 
-    # Stop the telegram bot
+    # Stop Telegram bot
     await tg_app.updater.stop()
     await tg_app.stop()
     await tg_app.shutdown()
 
+    # Wait for all tasks to complete
+    await asyncio.gather(sinric_pro_task, event_listener_task, return_exceptions=True)
+
+    logging.info("Cleanup completed. Exiting...")
+
 
 if __name__ == "__main__":
-    import os
-
-    print(os.getcwd())
-    # asyncio.run(main(), debug=True)
     asyncio.run(main())

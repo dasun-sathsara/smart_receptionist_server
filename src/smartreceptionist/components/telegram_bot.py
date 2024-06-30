@@ -3,7 +3,16 @@ import logging
 from enum import Enum
 from pathlib import Path
 
-from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto, Update, CallbackQuery
+from telegram import (
+    Bot,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    InputMediaPhoto,
+    Update,
+    CallbackQuery,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+)
 from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import ContextTypes
 
@@ -48,6 +57,14 @@ class TelegramBot:
         self.current_menu_message = None
         self.user_start_message = None
         self.user_menu_message = None
+
+    @staticmethod
+    async def _build_custom_keyboard():
+        keyboard = [
+            [KeyboardButton("🏠 Home Control"), KeyboardButton("📹 Camera Control")],
+            [KeyboardButton("🎙️ Audio Control"), KeyboardButton("🔄 Start")],
+        ]
+        return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
     @staticmethod
     async def _build_main_menu():
@@ -113,36 +130,37 @@ class TelegramBot:
         try:
             self.bot = context.bot
             user_id = update.effective_user.id
-
             if user_id != self.admin_user_id:
                 await update.message.reply_text("⛔ Unauthorized: You are not authorized to use this bot.")
                 return
 
-            # if not self.app_state.esp_s3_state == ESPState.CONNECTED or not self.app_state.esp_cam_state == ESPState.CONNECTED:
-            #     await update.message.reply_text("🔌 ESP Devices: Not all ESP devices are connected. Please check their status.")
-            #     return
-
-            # Delete the previous start or menu message
             await self.delete_user_sent_messages(context)
-
-            # Save the message ID
             self.user_start_message = update.message.message_id
-
+            custom_keyboard = await self._build_custom_keyboard()
+            await update.message.reply_text("Welcome to Smart Home Control Center", reply_markup=custom_keyboard)
             await self.send_main_menu(update, context)
-
         except TelegramError as e:
             self.logger.error(f"Telegram error during /start: {e}")
             await update.message.reply_text("An error occurred. Please try again later.")
-
         except Exception as e:
             self.logger.exception(f"Unexpected error during /start: {e}")
             await update.message.reply_text("An error occurred. Please try again later.")
 
-    async def handle_unrecognized_message(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
+    async def handle_unrecognized_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
-            await update.message.reply_text(
-                "🤔 Sorry, I didn't quite get that. Following are the commands I understand:\n\n /start - Start the bot\n/menu - Show the main menu"
-            )
+            message_text = update.message.text
+            if message_text == "🏠 Home Control":
+                await self.send_home_control_menu(update, context)
+            elif message_text == "📹 Camera Control":
+                await self.send_camera_control_menu(update, context)
+            elif message_text == "🎙️ Audio Control":
+                await self.send_audio_control_menu(update, context)
+            elif message_text == "🔄 Start":
+                await self.start(update, context)
+            else:
+                await update.message.reply_text(
+                    "🤔 Sorry, I didn't quite get that. Please use the custom keyboard or /start command."
+                )
         except TelegramError as e:
             self.logger.error(f"Telegram error during handle_unrecognized_message: {e}")
 
@@ -152,7 +170,6 @@ class TelegramBot:
                 await context.bot.delete_message(chat_id=self.admin_user_id, message_id=self.user_start_message)
             except TelegramError:
                 pass
-
         if self.user_menu_message:
             try:
                 await context.bot.delete_message(chat_id=self.admin_user_id, message_id=self.user_menu_message)
@@ -162,20 +179,35 @@ class TelegramBot:
     async def send_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         await self.delete_user_sent_messages(context)
         self.user_menu_message = update.message.message_id
-
         if self.current_menu_message:
             try:
                 await context.bot.delete_message(chat_id=self.admin_user_id, message_id=self.current_menu_message)
             except TelegramError:
                 pass
-
         menu_message = await update.message.reply_text("🏡 Smart Home Control Center", reply_markup=await self._build_main_menu())
+        self.current_menu_message = menu_message.message_id
+
+    async def send_home_control_menu(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
+        menu_message = await update.message.reply_text(
+            "🏠 Home Control Panel", reply_markup=await self._build_home_control_menu()
+        )
+        self.current_menu_message = menu_message.message_id
+
+    async def send_camera_control_menu(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
+        menu_message = await update.message.reply_text(
+            "📹 Camera Control Panel", reply_markup=await self._build_camera_control_menu()
+        )
+        self.current_menu_message = menu_message.message_id
+
+    async def send_audio_control_menu(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
+        menu_message = await update.message.reply_text(
+            "🎙️ Audio Control Panel", reply_markup=await self._build_audio_control_menu()
+        )
         self.current_menu_message = menu_message.message_id
 
     async def handle_callback_query(self, update: Update, _: ContextTypes.DEFAULT_TYPE):
         try:
             query = update.callback_query
-
             if query.data in MENU_ACTIONS:
                 await self._handle_menu_response(query)
             elif query.data in HOME_CONTROL_ACTIONS:
@@ -186,11 +218,9 @@ class TelegramBot:
                 await self._handle_audio_control_prompt_response(query)
             elif query.data in ACCESS_CONTROL_ACTIONS:
                 await self._handle_access_control_prompt_response(query)
-
         except TelegramError as e:
             self.logger.error(f"Telegram error during handle_callback_query: {e}")
             await update.callback_query.answer("An error occurred. Please try again.")
-
         except Exception as e:
             self.logger.exception(f"Unexpected error during handle_callback_query: {e}")
             await update.callback_query.answer("An error occurred. Please try again.")
@@ -286,11 +316,11 @@ class TelegramBot:
             if query.data == Actions.ACCESS_ALLOW:
                 await query.answer("✅ Granting access...")
                 await query.edit_message_text("✅ Access granted.")
-                await self.event_listener.enqueue_event(Event("access_granted", "tg", {}))
+                await self.event_listener.enqueue_event(Event("access_control", "tg", {"action": "granted"}))
             elif query.data == Actions.ACCESS_DENY:
                 await query.answer("❌ Denying access...")
                 await query.edit_message_text("❌ Access denied.")
-                await self.event_listener.enqueue_event(Event("access_denied", "tg", {}))
+                await self.event_listener.enqueue_event(Event("access_control", "tg", {"action": "denied"}))
 
         except TelegramError as e:
             self.logger.error(f"Telegram error during _handle_access_control_response: {e}")

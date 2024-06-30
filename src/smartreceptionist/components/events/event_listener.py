@@ -48,6 +48,8 @@ class EventListener:
             await asyncio.create_task(event_handler.handle_audio_event(event))
         elif event.event_type == "camera":
             await asyncio.create_task(event_handler.handle_camera_event(event))
+        elif event.event_type == "access_control":
+            await asyncio.create_task(event_handler.handle_access_control_event(event))
 
         # Handling raw data
         elif event.event_type == "image_data":
