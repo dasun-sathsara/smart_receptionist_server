@@ -3,6 +3,7 @@ import io
 import logging
 from shutil import which
 
+import noisereduce as nr
 import numpy as np
 import soundfile as sf
 from pydub import AudioSegment
@@ -94,36 +95,32 @@ class AudioProcessor:
     def process_audio_data(self, audio_data: np.ndarray) -> np.ndarray:
         """Applies audio processing steps in a clear sequence."""
 
-        # Apply high-pass filter
-        sos = signal.butter(10, 80, "hp", fs=Config.SAMPLE_RATE, output="sos")
+        # Apply high-pass filter with a lower cutoff frequency
+        sos = signal.butter(5, 50, "hp", fs=Config.SAMPLE_RATE, output="sos")
         audio_data = signal.sosfilt(sos, audio_data)
 
-        # Apply low-pass filter
-        sos = signal.butter(10, 3000, "lp", fs=Config.SAMPLE_RATE, output="sos")
+        # Apply low-pass filter with a higher cutoff frequency
+        sos = signal.butter(5, 8000, "lp", fs=Config.SAMPLE_RATE, output="sos")
         audio_data = signal.sosfilt(sos, audio_data)
 
-        audio_data = self.increase_volume(audio_data, Config.TARGET_VOLUME)
-        audio_data = self.normalize_audio(audio_data)
-        audio_data = self.reduce_noise(audio_data, Config.NOISE_FLOOR)
+        # Noise reduction with different parameters
+        audio_data = nr.reduce_noise(
+            y=audio_data,
+            sr=Config.SAMPLE_RATE,
+            prop_decrease=0.7,
+            time_constant_s=2.0,
+            freq_mask_smooth_hz=100,
+            n_std_thresh_stationary=1.5,
+        )
+
+        # Auto gain with a conservative target level
+        audio_data = self.auto_gain(audio_data, target_level=Config.TARGET_VOLUME)  # Increased target level
+
         return audio_data
 
     @staticmethod
-    def increase_volume(audio_data: np.ndarray, target_volume) -> np.ndarray:
-        """Increase the volume of the audio data to the target volume."""
-        rms = np.sqrt(np.mean(audio_data**2))
-        target_rms = 10 ** (target_volume / 20)
-        gain = target_rms / (rms + 1e-10)  # Avoid division by zero
-        return audio_data * gain
-
-    @staticmethod
-    def normalize_audio(audio_data: np.ndarray) -> np.ndarray:
-        """Normalize the audio data to the range [-1, 1]."""
-        peak = np.max(np.abs(audio_data))
-        return audio_data / (peak + 1e-10)  # Avoid division by zero
-
-    @staticmethod
-    def reduce_noise(audio_data: np.ndarray, noise_floor) -> np.ndarray:
-        """Reduce noise in the audio data based on the noise floor."""
-        noise_threshold = np.percentile(np.abs(audio_data), 1) * 10 ** (noise_floor / 20)
-        audio_data[np.abs(audio_data) < noise_threshold] = 0
-        return audio_data
+    def auto_gain(audio_data: np.ndarray, target_level=-5.0) -> np.ndarray:
+        """Apply automatic gain control to normalize audio levels."""
+        current_level = 20 * np.log10(np.max(np.abs(audio_data)))
+        gain_factor = 10 ** ((target_level - current_level) / 20)
+        return audio_data * gain_factor
