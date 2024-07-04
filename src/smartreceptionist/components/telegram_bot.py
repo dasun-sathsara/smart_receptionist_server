@@ -17,7 +17,7 @@ from telegram.error import NetworkError, TelegramError, TimedOut
 from telegram.ext import ContextTypes
 
 from .app_state import AppState, GateState, LightState
-from .events.event import Event
+from .events.event import Event, EventType, Origin
 from .events.event_listener import EventListener
 
 
@@ -241,23 +241,23 @@ class TelegramBot:
 
     async def _handle_audio_control_prompt_response(self, query: CallbackQuery):
         if query.data == Actions.START_RECORDING:
-            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "start_recording"}))
+            await self.event_listener.enqueue_event(Event(EventType.AUDIO, Origin.TG, {"action": "start_recording"}))
             await query.edit_message_text("🔴 Recording started", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.STOP_RECORDING:
-            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "stop_recording"}))
+            await self.event_listener.enqueue_event(Event(EventType.AUDIO, Origin.TG, {"action": "stop_recording"}))
             await query.edit_message_text("⏹️ Recording stopped", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.START_PLAYBACK:
-            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "start_playing"}))
+            await self.event_listener.enqueue_event(Event(EventType.AUDIO, Origin.TG, {"action": "start_playing"}))
             await query.edit_message_text("▶️ Playback started", reply_markup=await self._build_audio_control_menu())
         elif query.data == Actions.STOP_PLAYBACK:
-            await self.event_listener.enqueue_event(Event("audio", "tg", {"action": "stop_playing"}))
+            await self.event_listener.enqueue_event(Event(EventType.AUDIO, Origin.TG, {"action": "stop_playing"}))
             await query.edit_message_text("⏹️ Playback stopped", reply_markup=await self._build_audio_control_menu())
 
     async def _handle_camera_control_prompt_response(self, query: CallbackQuery):
         if query.data == Actions.CAPTURE_IMAGE:
             await query.answer("📸 Capturing image...")
             await query.edit_message_text("📸 Capturing image...")
-            await self.event_listener.enqueue_event(Event("camera", "tg", {"action": "capture_image"}))
+            await self.event_listener.enqueue_event(Event(EventType.CAMERA, Origin.TG, {"action": "capture_image"}))
 
     async def _handle_home_control_prompt_response(self, query: CallbackQuery):
         try:
@@ -273,7 +273,7 @@ class TelegramBot:
             elif current_state.__class__ == GateState:
                 new_state = "open" if action == "toggle" and current_state != GateState.OPEN else "closed"
 
-            event = Event("change_state", "tg", {"device": device, "state": new_state})
+            event = Event(EventType.CHANGE_STATE, Origin.TG, {"device": device, "state": new_state})
             await self.event_listener.enqueue_event(event)
 
             await query.answer("🔄 Processing...")
@@ -316,11 +316,11 @@ class TelegramBot:
             if query.data == Actions.ACCESS_ALLOW:
                 await query.answer("✅ Granting access...")
                 await query.edit_message_text("✅ Access granted.")
-                await self.event_listener.enqueue_event(Event("access_control", "tg", {"action": "granted"}))
+                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "granted"}))
             elif query.data == Actions.ACCESS_DENY:
                 await query.answer("❌ Denying access...")
                 await query.edit_message_text("❌ Access denied.")
-                await self.event_listener.enqueue_event(Event("access_control", "tg", {"action": "denied"}))
+                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "denied"}))
 
         except TelegramError as e:
             self.logger.error(f"Telegram error during _handle_access_control_response: {e}")
@@ -335,7 +335,7 @@ class TelegramBot:
             voice_file = await context.bot.get_file(update.message.voice.file_id)
             self.logger.info("Received voice message.")
             voice_bytes = await voice_file.download_as_bytearray()
-            await self.event_listener.enqueue_event(Event("audio_data", "tg", {"audio": voice_bytes}))
+            await self.event_listener.enqueue_event(Event(EventType.AUDIO_DATA, Origin.TG, {"audio": voice_bytes}))
 
         except (TelegramError, TimedOut, NetworkError) as e:
             error_message = f"Error getting or downloading voice message: {e}"

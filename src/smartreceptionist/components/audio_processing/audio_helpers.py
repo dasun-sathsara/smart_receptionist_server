@@ -8,10 +8,10 @@ AudioOrigin = Literal["tg", "esp"]
 
 
 async def save_audio_file(data: bytes, origin: AudioOrigin) -> Path:
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    file_extension = "pcm" if origin == "tg" else "opus"
-    filename = f"{timestamp}.{file_extension}"
+    """Saves the received audio data to a file and returns the file path."""
 
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    filename = f"{timestamp}.wav"
     base_dir = Path("media/audio")
     sub_dir = base_dir / f"{origin}_received"
     file_path = sub_dir / filename
@@ -22,7 +22,7 @@ async def save_audio_file(data: bytes, origin: AudioOrigin) -> Path:
             await audio_file.write(data)
         return file_path
     except (FileNotFoundError, PermissionError, IOError) as e:
-        raise SystemError(f"Error saving audio file: {e}") from e
+        raise SystemError(f"Error saving audio file: {e}")
 
 
 async def get_latest_telegram_audio() -> Path:

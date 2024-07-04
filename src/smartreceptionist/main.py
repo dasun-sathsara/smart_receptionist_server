@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import platform
 import signal
 
 import websockets
@@ -127,37 +128,42 @@ async def main():
     loop = asyncio.get_event_loop()
 
     # Ctrl+C (SIGINT) signal stops the application
-    stop_application = loop.create_future()
+    stop_application = asyncio.Event()
 
-    def signal_handler(sig, _):
-        stop_application.set_result(None)
-        logging.info("Received signal %s, stopping application", sig)
+    # Get the operating system name
+    os_name = platform.system()
 
-    signal.signal(signal.SIGINT, signal_handler)
+    if os_name == "Windows":
+        signal.signal(signal.SIGINT, lambda _1, _2: stop_application.set())
+        signal.signal(signal.SIGTERM, lambda _1, _2: stop_application.set())
+    elif os_name == "Linux":
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop_application.set)
 
-    # Wait for the stop signal
-    await stop_application
+    try:
+        # Wait for the stop signal
+        await stop_application.wait()
+    finally:
+        # Cleanup tasks
+        logging.info("Cleaning up...")
 
-    # Cleanup tasks
-    logging.info("Cleaning up...")
+        # Cancel running tasks
+        sinric_pro_task.cancel()
+        event_listener_task.cancel()
 
-    # Cancel running tasks
-    sinric_pro_task.cancel()
-    event_listener_task.cancel()
+        # Close WebSocket server
+        ws_server_process.close()
+        await ws_server_process.wait_closed()
 
-    # Close WebSocket server
-    ws_server_process.close()
-    await ws_server_process.wait_closed()
+        # Stop Telegram bot
+        await tg_app.updater.stop()
+        await tg_app.stop()
+        await tg_app.shutdown()
 
-    # Stop Telegram bot
-    await tg_app.updater.stop()
-    await tg_app.stop()
-    await tg_app.shutdown()
+        # Wait for all tasks to complete
+        await asyncio.gather(sinric_pro_task, event_listener_task, return_exceptions=True)
 
-    # Wait for all tasks to complete
-    await asyncio.gather(sinric_pro_task, event_listener_task, return_exceptions=True)
-
-    logging.info("Cleanup completed. Exiting...")
+        logging.info("Cleanup completed. Exiting...")
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING
 
-from .event import Event
+from .event import Event, EventType
 
 if TYPE_CHECKING:
     from .event_handler import EventHandler
@@ -35,26 +35,28 @@ class EventListener:
         event_handler: "EventHandler",
     ):
         # Do not log if the event is audio_data as it will clutter the logs
-        if event.event_type != "audio_data":
-            self.logger.info(f"Handling event: {event.event_type}")
+        if event.event_type != EventType.AUDIO_DATA:
+            self.logger.info(f"Handling event: {event}")
 
-        if event.event_type == "change_state":
+        if event.event_type == EventType.CHANGE_STATE:
             await asyncio.create_task(event_handler.handle_ap_state_change_event(event))
-        elif event.event_type == "motion_detected":
+        elif event.event_type == EventType.MOTION_DETECTED:
             await asyncio.create_task(event_handler.handle_motion_detected_event())
-        elif event.event_type == "person_detected":
+        elif event.event_type == EventType.PERSON_DETECTED:
             await asyncio.create_task(event_handler.handle_person_detected_event())
-        elif event.event_type == "audio":
+        elif event.event_type == EventType.AUDIO:
             await asyncio.create_task(event_handler.handle_audio_event(event))
-        elif event.event_type == "camera":
+        elif event.event_type == EventType.CAMERA:
             await asyncio.create_task(event_handler.handle_camera_event(event))
-        elif event.event_type == "access_control":
+        elif event.event_type == EventType.ACCESS_CONTROL:
             await asyncio.create_task(event_handler.handle_access_control_event(event))
+        elif event.event_type == EventType.RECORDING_SENT:
+            await asyncio.create_task(event_handler.handle_recording_sent_event())
 
         # Handling raw data
-        elif event.event_type == "image_data":
+        elif event.event_type == EventType.IMAGE_DATA:
             await asyncio.create_task(event_handler.handle_image_data(event))
-        elif event.event_type == "audio_data":
+        elif event.event_type == EventType.AUDIO_DATA:
             await asyncio.create_task(event_handler.handle_audio_data(event))
 
         # Mark the task as done

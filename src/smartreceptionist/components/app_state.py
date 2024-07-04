@@ -38,9 +38,6 @@ class AppState:
     motion_detected: bool = False
     motion_detected_event: asyncio.Event = field(default_factory=asyncio.Event, init=False)
 
-    is_recording: bool = False
-    is_playing: bool = False
-
     home_control_prompt_sent: bool = False  # Whether the prompt to control the gate and light has been sent to the user
 
     def __setattr__(self, name: str, value: any) -> None:

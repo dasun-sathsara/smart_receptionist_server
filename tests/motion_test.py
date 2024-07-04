@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 async def simulate_motion_detection():
+    # uri = "ws://35.197.142.113:8765"  # Replace with your WebSocket server URI
     uri = "ws://localhost:8765"  # Replace with your WebSocket server URI
 
     while True:
@@ -39,19 +40,19 @@ async def simulate_motion_detection():
                 logger.info("[ESP CAM] Sent init message as esp_cam")
                 await asyncio.sleep(1)
 
-                # # Trigger motion detection
-                # motion_message = json.dumps(
-                #     {"event_type": "motion_detected", "data": {}},
-                # )
-                # await websocket.send(motion_message)
-                #
-                # # Send an image right away
-                # with open("test_images/test1.jpg", "rb") as f:
-                #     image_bytes = f.read()
-                #     await websocket.send(b"IMAGE:" + image_bytes)
-                #
-                # logger.info("[ESP CAM] Triggered motion detection and sent an image")
-                #
+                # Trigger motion detection
+                motion_message = json.dumps(
+                    {"event_type": "motion_detected", "data": {}},
+                )
+                await websocket.send(motion_message)
+
+                # Send an image right away
+                with open("test_images/test1.jpg", "rb") as f:
+                    image_bytes = f.read()
+                    await websocket.send(b"IMAGE:" + image_bytes)
+
+                logger.info("[ESP CAM] Triggered motion detection and sent an image")
+
                 # await asyncio.sleep(3)
                 #
                 # # Trigger person detection
@@ -64,8 +65,8 @@ async def simulate_motion_detection():
                 # with open("test_images/test2.jpg", "rb") as f:
                 #     image_bytes = f.read()
                 #     await websocket.send(b"IMAGE:" + image_bytes)
-                #
-                # logger.info("[ESP CAM] Triggered person detection and sent another image")
+
+                logger.info("[ESP CAM] Triggered person detecktion and sent another image")
 
                 try:
                     async for message in websocket:

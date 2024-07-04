@@ -12,47 +12,42 @@ from .image import Image
 class ImageProcessor:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.model = YOLO("yolov8n-face.pt")
+        self.process_pool = concurrent.futures.ProcessPoolExecutor(max_workers=1)
 
     async def process_image(self, image_data: bytes) -> Image:
-        with concurrent.futures.ProcessPoolExecutor() as pool:
-            processed_image = await asyncio.get_running_loop().run_in_executor(pool, self._process_image_sync, image_data)
-        return processed_image
+        loop = asyncio.get_running_loop()
+        try:
+            processed_image = await loop.run_in_executor(self.process_pool, self._process_image_sync, image_data)
+            return processed_image
+        except Exception as e:
+            self.logger.error(f"Error processing image: {e}")
+            raise
 
-    def _process_image_sync(self, image_data: bytes) -> Image:
+    @staticmethod
+    def _process_image_sync(image_data: bytes) -> Image:
+        model = YOLO("yolov8n-face.pt")  # Initialize model within the process
+
         image_array = np.frombuffer(image_data, dtype=np.uint8)
         image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
-
         if image is None:
-            self.logger.error("Failed to decode image from raw data.")
             raise ValueError("Invalid image data")
 
-        results = self.model.predict(source=image, save=False, max_det=3)
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        results = model(image_rgb)
 
-        faces_detected = False
-        for result in results:
-            boxes = result.boxes
-            if len(boxes) > 0:
-                faces_detected = True
-                break
+        faces_detected = len(results[0].boxes) > 0
 
         if faces_detected:
-            # Apply pre-processing
-            preprocessed = self.preprocess_image(image)
-
-            # Draw bounding boxes on the preprocessed image
+            preprocessed = ImageProcessor.preprocess_image(image)
             for result in results:
                 boxes = result.boxes
                 for box in boxes:
                     x1, y1, x2, y2 = map(int, box.xyxy.tolist()[0])
                     cv2.rectangle(preprocessed, (x1, y1), (x2, y2), (0, 255, 0), 1)
-
-            # Apply post-processing
-            final_image = self.postprocess_image(preprocessed)
+            final_image = ImageProcessor.postprocess_image(preprocessed)
         else:
             final_image = image
 
-        # Re-encode the processed image to bytes
         _, buffer = cv2.imencode(".jpg", final_image)
         processed_image = Image(image_data=buffer.tobytes(), faces_detected=faces_detected)
         return processed_image

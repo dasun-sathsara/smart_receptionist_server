@@ -1,29 +1,41 @@
 import asyncio
 import json
 import logging
-from dataclasses import asdict, dataclass
+import wave
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-import aiofiles
 from websockets import ConnectionClosed, WebSocketServerProtocol
 
 from .app_state import AppState, ESPState
 from .config import Config
-from .events.event import Event
+from .events.event import Event, EventType, Origin
 from .events.event_listener import EventListener
 
 
 @dataclass
 class WSMessage:
-    event_type: str
+    event_type: EventType
     data: dict
+
+    def __str__(self):
+        return f"{self.event_type.name}: {self.data}"
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        try:
+            event_type = EventType(data["event_type"])
+        except ValueError:
+            raise ValueError(f"Invalid event type: {data['event_type']}")
+
+        return cls(event_type=event_type, data=data.get("data", {}))
 
 
 class WSMessageEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, WSMessage):
-            return asdict(o)  # Convert dataclass to dict
+            return {"event_type": o.event_type.value, "data": o.data}
         return super().default(o)
 
 
@@ -50,28 +62,33 @@ class WebSocketServer:
             setattr(self.app_state, f"{device_name}_state", ESPState.CONNECTED)
             self.logger.info(f"{device_name} connected.")
 
-    async def stream_audio(self, audio_file_path: Path):
+    async def start_prefetching(self, audio_file_path: Path):
         device_name = "esp_s3"
-
-        # Find the websocket for the device
         websocket = next((ws for ws, name in self.connected_devices.items() if name == device_name), None)
-
         if not websocket:
             self.logger.warning(f"No connected websocket found for device: {device_name}")
             return
 
         try:
             self.logger.info(f"Started streaming audio to {websocket.remote_address}")
-            async with aiofiles.open(audio_file_path, "rb") as audio_file:
-                while self.app_state.is_playing:
-                    chunk = await audio_file.read(Config.DEFAULT_CHUNK_SIZE)
+            await self.send("esp_s3", WSMessage(event_type=EventType.AUDIO, data={"action": "start_prefetch"}))
+
+            with wave.open(str(audio_file_path), "rb") as wav_file:
+                if wav_file.getnchannels() != 1 or wav_file.getsampwidth() != 2 or wav_file.getframerate() != Config.SAMPLE_RATE:
+                    raise ValueError(f"Unexpected WAV format. Expected: 1 channel, 16-bit, {Config.SAMPLE_RATE}Hz")
+
+                # Skip the WAV header (44 bytes for standard WAV files)
+                wav_file.setpos(44 // wav_file.getsampwidth())
+
+                while True:
+                    chunk = wav_file.readframes(Config.DEFAULT_CHUNK_SIZE // 2)
                     if not chunk:
-                        break  # End of file
+                        break
+
                     await websocket.send(chunk)
-                    # Delay for real-time playback
-                    # await asyncio.sleep(Config.DEFAULT_CHUNK_SIZE / (Config.SAMPLE_RATE * Config.BYTES_PER_SAMPLE))
-                    await asyncio.sleep(0.001)
-            # await self.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_playing"}))
+                    await asyncio.sleep(0.01)
+
+            await self.send("esp_s3", WSMessage(event_type=EventType.AUDIO, data={"action": "stop_prefetch"}))
             self.logger.info(f"Finished streaming audio to {websocket.remote_address}")
         except ConnectionClosed:
             self.logger.warning(f"Connection closed by client {websocket.remote_address} during audio streaming.")
@@ -79,17 +96,20 @@ class WebSocketServer:
             self.logger.error(f"Error during audio streaming: {e}")
 
     async def handle_events(self, message: WSMessage, websocket: WebSocketServerProtocol):
-        if message.event_type == "init":
+        if message.event_type == EventType.INIT:
             await self._handle_init_message(message, websocket)
-
-        if message.event_type in ("change_state", "person_detected", "motion_detected", "image", "audio"):
-            await self.event_listener.enqueue_event(Event(event_type=message.event_type, origin="esp", data=message.data))
+        else:
+            await self.event_listener.enqueue_event(Event(message.event_type, Origin.ESP, message.data))
 
     async def handle_audio_chunk(self, message: bytes, _: WebSocketServerProtocol):
-        await self.event_listener.enqueue_event(Event(event_type="audio_data", origin="esp", data={"audio": message}))
+        await self.event_listener.enqueue_event(
+            Event(event_type=EventType.AUDIO_DATA, origin=Origin.ESP, data={"audio": message})
+        )
 
     async def handle_image_data(self, message: bytes, _: WebSocketServerProtocol):
-        await self.event_listener.enqueue_event(Event(event_type="image_data", origin="esp", data={"image": message}))
+        await self.event_listener.enqueue_event(
+            Event(event_type=EventType.IMAGE_DATA, origin=Origin.ESP, data={"image": message})
+        )
 
     async def handle_new_connection(self, websocket: WebSocketServerProtocol):
         self.logger.info(f"Websocket client connected: {websocket.remote_address}")
@@ -102,13 +122,14 @@ class WebSocketServer:
                 # Directly check if message starts with JSON opening brace '{'
                 if message.startswith(b"{"):
                     try:
-                        # Log the received message
-                        self.logger.info(f"Received message: {message.decode('utf-8')}")
-                        message = json.loads(message.decode("utf-8"))
-                        message = WSMessage(**message)
-                        _ = asyncio.create_task(self.handle_events(message, websocket))
+                        message_dict = json.loads(message.decode("utf-8"))
+                        ws_message = WSMessage.from_dict(message_dict)
+                        self.logger.info(f"Received message: {ws_message}")
+                        await self.handle_events(ws_message, websocket)
                     except json.JSONDecodeError:
                         self.logger.warning("Invalid JSON message received")
+                    except ValueError as e:
+                        self.logger.warning(f"Invalid message format: {e}")
 
                 else:  # Raw data
                     prefix, data = message.split(b":", 1)

@@ -17,14 +17,15 @@ class AudioQueue:
             self.logger.warning("Audio chunk queue is full. Dropping chunk.")
 
     async def get_audio_data(self) -> bytes:
-        # Wait for one second to queue up any incoming data
-        await asyncio.sleep(1)
-
         audio_data = b""
 
         while not self._audio_chunk_queue.empty():
             chunk = await self._audio_chunk_queue.get()
             audio_data += chunk
 
-        self.logger.debug(f"Retrieved {len(audio_data)} bytes of audio data.")
+        self.logger.info(f"Retrieved {len(audio_data)} bytes of audio data.")
         return audio_data
+
+    async def cleanup(self):
+        self._audio_chunk_queue = asyncio.Queue()
+        self.logger.info("Audio queue cleaned up.")

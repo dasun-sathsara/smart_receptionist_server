@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from .events.event import Event
+from .events.event import Event, EventType, Origin
 from .events.event_listener import EventListener
 
 
@@ -14,7 +14,7 @@ class GoogleHome:
     def handle_set_mode(self, device_id, state, instance_id):
         asyncio.ensure_future(
             self.event_listener.enqueue_event(
-                Event("change_state", "ghome", {"device": "gate", "state": "open" if state == "Open" else "closed"})
+                Event(EventType.CHANGE_STATE, Origin.GHOME, {"device": "gate", "state": "open" if state == "Open" else "closed"})
             )
         )
 
@@ -24,7 +24,7 @@ class GoogleHome:
     def handle_power_state(self, device_id, state):
         asyncio.ensure_future(
             self.event_listener.enqueue_event(
-                Event("change_state", "ghome", {"device": "light", "state": state.lower()})
+                Event(EventType.CHANGE_STATE, Origin.GHOME, {"device": "light", "state": state.lower()})
             )
         )
 

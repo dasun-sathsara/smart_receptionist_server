@@ -28,10 +28,10 @@ class Config:
     LIGHT_ID = os.getenv("LIGHT_ID")
 
     BYTES_PER_SAMPLE = 2
-    DEFAULT_CHUNK_SIZE = 1024
+    DEFAULT_CHUNK_SIZE = 1024 * 8
 
     TARGET_VOLUME = 1
-    SAMPLE_RATE = 48000
+    SAMPLE_RATE = 16000
     BIT_DEPTH = 16
 
     @staticmethod

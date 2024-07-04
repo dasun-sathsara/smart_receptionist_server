@@ -8,7 +8,7 @@ from ..audio_processing.audio_helpers import get_latest_telegram_audio, save_aud
 from ..audio_processing.audio_processor import AudioProcessor
 from ..audio_processing.audio_queue import AudioQueue
 from ..config import Config
-from ..events.event import Event
+from ..events.event import Event, Origin, EventType
 from ..image_processing.image_processor import ImageProcessor
 from ..image_processing.image_queue import ImageQueue
 from ..telegram_bot import TelegramBot
@@ -37,46 +37,22 @@ class EventHandler:
 
     async def handle_audio_event(self, event: Event):
         action = event.data["action"]
-        origin = event.origin
+        await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.AUDIO, data={"action": action}))
 
-        if action == "start_recording":
-            self.app_state.is_recording = True
-            if origin == "tg":
-                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "start_recording"}))
+    async def handle_recording_sent_event(self):
+        pcm_data = await self.audio_queue.get_audio_data()
 
-        elif action == "stop_recording":
-            self.app_state.is_recording = False
-            if origin == "tg":
-                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_recording"}))
-
-            pcm_data = await self.audio_queue.get_audio_data()
-            if pcm_data:
-                try:
-                    opus_data = await self.audio_processor.process_audio(pcm_data, "pcm", "opus")
-                    await save_audio_file(opus_data, "esp")
-                    self.logger.info("Audio processed and saved.")
-                    await self.telegram_bot.send_voice_message(opus_data)
-                except Exception as e:
-                    self.logger.error(f"Error processing and sending audio: {e}")
-                    await self.telegram_bot.send_message("An error occurred while processing your voice message.")
-            else:
-                self.logger.warning("No audio data received for recording.")
-
-        elif action == "start_playing":
-            self.app_state.is_playing = True
-            if origin == "tg":
-                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "start_playing"}))
-
-            latest_audio_path = await get_latest_telegram_audio()
-            await self.ws_server.stream_audio(latest_audio_path)
-
-        elif action == "stop_playing":
-            self.app_state.is_playing = False
-            if origin == "tg":
-                await self.ws_server.send("esp_s3", WSMessage(event_type="audio", data={"action": "stop_playing"}))
+        if pcm_data:
+            wav = await self.audio_processor.process_audio(pcm_data, "pcm")
+            await self.telegram_bot.send_voice_message(wav)
+            await save_audio_file(wav, "esp")
+            await self.audio_queue.cleanup()
+            self.logger.info("Audio recording from ESP processed and sent.")
+        else:
+            self.logger.warning("No audio data found in the queue.")
 
     async def handle_ap_state_change_event(self, event: Event):
-        if event.origin == "esp":
+        if event.origin == Origin.ESP:
             device = event.data["device"]
             new_state_str = event.data["state"]
 
@@ -118,16 +94,16 @@ class EventHandler:
                     },
                 )
 
-        elif event.origin == "tg" or event.origin == "ghome":
+        elif event.origin == Origin.TG or event.origin == Origin.GHOME:
             try:
-                message = WSMessage(event_type="change_state", data=event.data)
+                message = WSMessage(event_type=EventType.CHANGE_STATE, data=event.data)
                 await self.ws_server.send("esp_s3", message)
             except Exception as e:
                 self.logger.error(f"Error sending message to WebSocket: {e}")
 
     async def handle_camera_event(self, event: Event):
         if event.data["action"] == "capture_image":
-            await self.ws_server.send("esp_cam", WSMessage(event_type="capture_image", data={}))
+            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CAPTURE_IMAGE, data={}))
 
     async def handle_motion_detected_event(self):
         self.app_state.motion_detected = True
@@ -164,7 +140,7 @@ class EventHandler:
             )
             return True
         except asyncio.TimeoutError:
-            await self.ws_server.send("esp_cam", WSMessage(event_type="capture_image", data={}))
+            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CAPTURE_IMAGE, data={}))
             return False
 
     async def handle_person_detected_event(self):
@@ -177,7 +153,7 @@ class EventHandler:
         else:
             for interval in [5, 9, 13]:
                 await asyncio.sleep(interval)
-                await self.ws_server.send("esp_cam", WSMessage(event_type="capture_image", data={}))
+                await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CAPTURE_IMAGE, data={}))
 
                 try:
                     await asyncio.wait_for(self.image_queue.dequeue_processed_image(), timeout=30)
@@ -199,6 +175,14 @@ class EventHandler:
         await self.telegram_bot.send_access_control_prompt()
         await self.image_queue.cleanup()
 
+    async def handle_access_control_event(self, event: Event):
+        action = event.data["action"]
+
+        if action == "grant_access":
+            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.GRANT_ACCESS, data={}))
+        elif action == "deny_access":
+            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.DENY_ACCESS, data={}))
+
     async def _handle_person_confirmed_without_face(self):
         self.logger.info("Sending access control prompt to Telegram.")
         await self.telegram_bot.send_access_control_prompt()
@@ -207,12 +191,16 @@ class EventHandler:
     # Handling raw data
     async def handle_audio_data(self, event: Event):
         audio_data = event.data["audio"]
-        if event.origin == "esp":
+
+        if event.origin == Origin.ESP:
             await self.audio_queue.add_audio_chunk(audio_data)
-        elif event.origin == "tg":
-            pcm = await self.audio_processor.process_audio(audio_data, "opus", "pcm")
-            await save_audio_file(pcm, "tg")
-            self.logger.info("Audio was processed and saved.")
+        elif event.origin == Origin.TG:
+            wav = await self.audio_processor.process_audio(audio_data, "opus")
+            await save_audio_file(wav, "tg")
+            self.logger.info("Audio file from telegram processed and saved.")
+
+            latest_audio_path = await get_latest_telegram_audio()
+            await self.ws_server.start_prefetching(latest_audio_path)
 
     async def handle_image_data(self, event: Event):
         if self.app_state.motion_detected:
@@ -222,11 +210,3 @@ class EventHandler:
             image = ImageProcessor.apply_processing(event.data["image"])
             await self.telegram_bot.send_image(image)
             self.logger.info("Image processed and sent to Telegram.")
-
-    async def handle_access_control_event(self, event: Event):
-        action = event.data["action"]
-
-        if action == "grant_access":
-            await self.ws_server.send("esp_cam", WSMessage(event_type="grant_access", data={}))
-        elif action == "deny_access":
-            await self.ws_server.send("esp_cam", WSMessage(event_type="deny_access", data={}))
