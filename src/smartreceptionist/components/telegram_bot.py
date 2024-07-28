@@ -31,6 +31,9 @@ class Actions(str, Enum):
     START_PLAYBACK = "start_playback"
     STOP_PLAYBACK = "stop_playback"
     CAPTURE_IMAGE = "capture_image"
+    RESET_ESP32_S3 = "reset_esp32_s3"
+    RESET_ESP32_CAM = "reset_esp32_cam"
+    ENROLL_FINGERPRINT = "enroll_fingerprint"
 
 
 class Menus(str, Enum):
@@ -38,13 +41,14 @@ class Menus(str, Enum):
     HOME_CONTROL = "home_control"
     CAMERA_CONTROL = "camera_control"
     AUDIO_CONTROL = "audio_control"
+    SYSTEM_SETTINGS = "system_settings"
 
 
 AUDIO_ACTIONS = (Actions.START_RECORDING, Actions.STOP_RECORDING, Actions.START_PLAYBACK, Actions.STOP_PLAYBACK)
 CAMERA_ACTIONS = (Actions.CAPTURE_IMAGE,)
 ACCESS_CONTROL_ACTIONS = (Actions.ACCESS_ALLOW, Actions.ACCESS_DENY)
 HOME_CONTROL_ACTIONS = (Actions.LIGHT_TOGGLE, Actions.GATE_TOGGLE)
-MENU_ACTIONS = (Menus.MAIN_MENU, Menus.HOME_CONTROL, Menus.CAMERA_CONTROL, Menus.AUDIO_CONTROL)
+MENU_ACTIONS = (Menus.MAIN_MENU, Menus.HOME_CONTROL, Menus.CAMERA_CONTROL, Menus.AUDIO_CONTROL, Menus.SYSTEM_SETTINGS)
 
 
 class TelegramBot:
@@ -70,10 +74,20 @@ class TelegramBot:
     async def _build_main_menu():
         keyboard = [
             [
-                InlineKeyboardButton("🏠 Home Control", callback_data="home_control"),
-                InlineKeyboardButton("📹 Camera Control", callback_data="camera_control"),
+                InlineKeyboardButton("🏠 Home Control", callback_data=Menus.HOME_CONTROL),
+                InlineKeyboardButton("📹 Camera Control", callback_data=Menus.CAMERA_CONTROL),
             ],
             [InlineKeyboardButton("🎙️ Audio Control", callback_data=Menus.AUDIO_CONTROL)],
+            [InlineKeyboardButton("⚙️ System Settings", callback_data=Menus.SYSTEM_SETTINGS)],
+        ]
+        return InlineKeyboardMarkup(keyboard)
+
+    async def _build_system_settings_menu(self):
+        keyboard = [
+            [InlineKeyboardButton("🔄 Reset ESP32-S3", callback_data=Actions.RESET_ESP32_S3)],
+            [InlineKeyboardButton("🔄 Reset ESP32-CAM", callback_data=Actions.RESET_ESP32_CAM)],
+            [InlineKeyboardButton("👆 Enroll New Finger", callback_data=Actions.ENROLL_FINGERPRINT)],
+            [InlineKeyboardButton("⬅️ Back to Main Menu", callback_data=Menus.MAIN_MENU)],
         ]
         return InlineKeyboardMarkup(keyboard)
 
@@ -149,7 +163,13 @@ class TelegramBot:
     async def handle_unrecognized_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             message_text = update.message.text
-            if message_text == "🏠 Home Control":
+            if message_text == "1":
+                await self.event_listener.enqueue_event(Event(EventType.MOTION_ENABLE, Origin.TG, {}))
+                await update.message.reply_text("Motion detection enabled.")
+            elif message_text == "2":
+                await self.event_listener.enqueue_event(Event(EventType.CHANGE_SERVER, Origin.TG, {}))
+                await update.message.reply_text("Websocket server changed.")
+            elif message_text == "🏠 Home Control":
                 await self.send_home_control_menu(update, context)
             elif message_text == "📹 Camera Control":
                 await self.send_camera_control_menu(update, context)
@@ -218,6 +238,8 @@ class TelegramBot:
                 await self._handle_audio_control_prompt_response(query)
             elif query.data in ACCESS_CONTROL_ACTIONS:
                 await self._handle_access_control_prompt_response(query)
+            elif query.data in (Actions.RESET_ESP32_S3, Actions.RESET_ESP32_CAM, Actions.ENROLL_FINGERPRINT):
+                await self._handle_system_settings_response(query)
         except TelegramError as e:
             self.logger.error(f"Telegram error during handle_callback_query: {e}")
             await update.callback_query.answer("An error occurred. Please try again.")
@@ -227,7 +249,6 @@ class TelegramBot:
 
     async def _handle_menu_response(self, query: CallbackQuery):
         await query.answer()
-
         if query.data == Menus.MAIN_MENU:
             await query.edit_message_text("🏡 Smart Home Control Center", reply_markup=await self._build_main_menu())
         elif query.data == Menus.HOME_CONTROL:
@@ -236,8 +257,24 @@ class TelegramBot:
             await query.edit_message_text("📹 Camera Control Panel", reply_markup=await self._build_camera_control_menu())
         elif query.data == Menus.AUDIO_CONTROL:
             await query.edit_message_text("🎙️ Audio Control Panel", reply_markup=await self._build_audio_control_menu())
-
+        elif query.data == Menus.SYSTEM_SETTINGS:
+            await query.edit_message_text("⚙️ System Settings", reply_markup=await self._build_system_settings_menu())
         self.current_menu_message = query.message.message_id
+
+    async def _handle_system_settings_response(self, query: CallbackQuery):
+        self.logger.info(f"Callback query: {query.data}")
+        await query.answer()
+        if query.data == Actions.RESET_ESP32_S3:
+            await self.event_listener.enqueue_event(Event(EventType.RESET_DEVICE, Origin.TG, {"device": "esp_s3"}))
+            await query.edit_message_text("🔄 Resetting ESP32-S3...", reply_markup=await self._build_system_settings_menu())
+        elif query.data == Actions.RESET_ESP32_CAM:
+            await self.event_listener.enqueue_event(Event(EventType.RESET_DEVICE, Origin.TG, {"device": "esp_cam"}))
+            await query.edit_message_text("🔄 Resetting ESP32-CAM...", reply_markup=await self._build_system_settings_menu())
+        elif query.data == Actions.ENROLL_FINGERPRINT:
+            await self.event_listener.enqueue_event(Event(EventType.ENROLL_FINGERPRINT, Origin.TG, {}))
+            await query.edit_message_text(
+                "👆 Starting fingerprint enrollment...", reply_markup=await self._build_system_settings_menu()
+            )
 
     async def _handle_audio_control_prompt_response(self, query: CallbackQuery):
         if query.data == Actions.START_RECORDING:
@@ -316,11 +353,11 @@ class TelegramBot:
             if query.data == Actions.ACCESS_ALLOW:
                 await query.answer("✅ Granting access...")
                 await query.edit_message_text("✅ Access granted.")
-                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "granted"}))
+                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "grant_access"}))
             elif query.data == Actions.ACCESS_DENY:
                 await query.answer("❌ Denying access...")
                 await query.edit_message_text("❌ Access denied.")
-                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "denied"}))
+                await self.event_listener.enqueue_event(Event(EventType.ACCESS_CONTROL, Origin.TG, {"action": "deny_access"}))
 
         except TelegramError as e:
             self.logger.error(f"Telegram error during _handle_access_control_response: {e}")
@@ -400,15 +437,25 @@ class TelegramBot:
         except TelegramError as e:
             self.logger.error(f"Error sending access control prompt: {e}")
 
-    async def send_message(self, message: str):
+    async def send_message(self, message: str, high_priority: bool = False):
         if not self.bot:
             self.logger.error("Bot instance not found.")
             return
-
         try:
-            await self.bot.send_message(self.admin_user_id, message)
+            await self.bot.send_message(
+                self.admin_user_id,
+                message,
+                disable_notification=False,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+                protect_content=False,
+                allow_sending_without_reply=True,
+                reply_to_message_id=None,
+                reply_markup=None,
+                entities=None,
+                link_preview_options=None,
+            )
             self.logger.info(f"Message sent: {message}")
-
         except TelegramError as e:
             self.logger.error(f"Error sending message: {e}")
 

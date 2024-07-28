@@ -16,6 +16,12 @@ class EventType(Enum):
     CAPTURE_IMAGE = "capture_image"
     GRANT_ACCESS = "grant_access"
     DENY_ACCESS = "deny_access"
+    RESET_DEVICE = "reset_device"
+    ENROLL_FINGERPRINT = "enroll_fingerprint"
+    FINGERPRINT_ENROLLED = "fingerprint_enrolled"
+    FINGERPRINT_ENROLLMENT_FAILED = "fingerprint_enrollment_failed"
+    MOTION_ENABLE = "motion_enable"
+    CHANGE_SERVER = "change_server"
 
 
 class Origin(Enum):

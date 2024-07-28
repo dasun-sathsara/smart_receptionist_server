@@ -25,7 +25,8 @@ class ImageProcessor:
 
     @staticmethod
     def _process_image_sync(image_data: bytes) -> Image:
-        model = YOLO("yolov8n-face.pt")  # Initialize model within the process
+        # YOLO model can't be pickled, so it needs to be initialized within the process.
+        model = YOLO("yolov8n-face.pt")
 
         image_array = np.frombuffer(image_data, dtype=np.uint8)
         image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)

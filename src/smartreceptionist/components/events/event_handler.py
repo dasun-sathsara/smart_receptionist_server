@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 
 from sinric import SinricPro, SinricProConstants
@@ -37,7 +38,8 @@ class EventHandler:
 
     async def handle_audio_event(self, event: Event):
         action = event.data["action"]
-        await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.AUDIO, data={"action": action}))
+        if event.origin == Origin.TG:
+            await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.AUDIO, data={"action": action}))
 
     async def handle_recording_sent_event(self):
         pcm_data = await self.audio_queue.get_audio_data()
@@ -107,10 +109,10 @@ class EventHandler:
 
     async def handle_motion_detected_event(self):
         self.app_state.motion_detected = True
-
+        await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CAPTURE_IMAGE, data={}))
         await asyncio.wait_for(self.image_queue.dequeue_processed_image(), timeout=30)
 
-        for interval in [3, 6, 9]:
+        for interval in [2, 3, 4]:
             if await self._wait_for_detection_or_timeout(interval):
                 self.app_state.person_detected = True
                 self.logger.info("Person detected during retry interval.")  # Combined logs
@@ -145,6 +147,7 @@ class EventHandler:
 
     async def handle_person_detected_event(self):
         self.app_state.person_detected = True
+        await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CAPTURE_IMAGE, data={}))
         await self.telegram_bot.send_message("👤 Person detected at the gate!")
 
         if await self.image_queue.dequeue_processed_image() and self.image_queue.num_of_face_detected_images >= 1:
@@ -177,16 +180,43 @@ class EventHandler:
 
     async def handle_access_control_event(self, event: Event):
         action = event.data["action"]
+        self.logger.info(f"Access control action: {action}")
 
         if action == "grant_access":
-            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.GRANT_ACCESS, data={}))
+            await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.GRANT_ACCESS, data={}))
+            self.logger.info("Sending access control to ESP. Access granted.")
         elif action == "deny_access":
-            await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.DENY_ACCESS, data={}))
+            await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.DENY_ACCESS, data={}))
+            self.logger.info("Sending access control to ESP. Access denied.")
 
     async def _handle_person_confirmed_without_face(self):
         self.logger.info("Sending access control prompt to Telegram.")
         await self.telegram_bot.send_access_control_prompt()
         await self.image_queue.cleanup()
+
+    async def handle_reset_device_event(self, event: Event):
+        device = event.data["device"]
+        await self.ws_server.send(device, WSMessage(event_type=EventType.RESET_DEVICE, data={}))
+        await self.telegram_bot.send_message(f"🔄 Reset command sent to {device.replace('_', '-').upper()}.")
+
+    async def handle_enroll_fingerprint(self):
+        fingerprint_id = self.get_next_fingerprint_id()
+        self.logger.info(f"Enrolling fingerprint with ID: {fingerprint_id}")
+        await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.ENROLL_FINGERPRINT, data={"id": fingerprint_id}))
+
+    def get_next_fingerprint_id(self):
+        try:
+            with open("fingerprint_ids.json", "r") as f:
+                data = json.load(f)
+                next_id = data.get("next_id", 10)
+        except FileNotFoundError:
+            next_id = 10
+        return next_id
+
+    def save_fingerprint_id(self, fingerprint_id):
+        data = {"next_id": fingerprint_id + 1}
+        with open("fingerprint_ids.json", "w") as f:
+            json.dump(data, f)
 
     # Handling raw data
     async def handle_audio_data(self, event: Event):
@@ -210,3 +240,21 @@ class EventHandler:
             image = ImageProcessor.apply_processing(event.data["image"])
             await self.telegram_bot.send_image(image)
             self.logger.info("Image processed and sent to Telegram.")
+
+    async def handle_fingerprint_enrolled(self, event: Event):
+        fingerprint_id = self.get_next_fingerprint_id()
+        self.save_fingerprint_id(fingerprint_id)
+        await self.telegram_bot.send_message(f"Fingerprint enrolled with ID: {fingerprint_id}")
+        self.logger.info(f"Fingerprint enrolled with ID: {fingerprint_id}")
+
+    async def handle_fingerprint_enrollment_failed(self, event: Event):
+        await self.telegram_bot.send_message("Fingerprint enrollment failed.")
+        self.logger.info("Fingerprint enrollment failed.")
+
+    async def handle_motion_enable_event(self, event: Event):
+        await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.MOTION_ENABLE, data={}))
+
+    async def handle_change_server_event(self, event: Event):
+        await self.ws_server.send("esp_s3", WSMessage(event_type=EventType.CHANGE_SERVER, data={"server": "34.124.199.12"}))
+        await self.ws_server.send("esp_cam", WSMessage(event_type=EventType.CHANGE_SERVER, data={"server": "34.124.199.12"}))
+        self.logger.info("The websocket server changed to 34.124.199.12.")

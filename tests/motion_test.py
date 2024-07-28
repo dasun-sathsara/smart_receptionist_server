@@ -23,8 +23,8 @@ logger = logging.getLogger(__name__)
 
 
 async def simulate_motion_detection():
-    # uri = "ws://35.197.142.113:8765"  # Replace with your WebSocket server URI
-    uri = "ws://localhost:8765"  # Replace with your WebSocket server URI
+    uri = "ws://34.124.199.12:8765"  # Replace with your WebSocket server URI
+    # uri = "ws://localhost:8765"  # Replace with your WebSocket server URI
 
     while True:
         try:
@@ -53,18 +53,18 @@ async def simulate_motion_detection():
 
                 logger.info("[ESP CAM] Triggered motion detection and sent an image")
 
-                # await asyncio.sleep(3)
-                #
-                # # Trigger person detection
-                # person_message = json.dumps(
-                #     {"event_type": "person_detected", "data": {}},
-                # )
-                # await websocket.send(person_message)
-                #
-                # # Send another image
-                # with open("test_images/test2.jpg", "rb") as f:
-                #     image_bytes = f.read()
-                #     await websocket.send(b"IMAGE:" + image_bytes)
+                await asyncio.sleep(3)
+
+                # Trigger person detection
+                person_message = json.dumps(
+                    {"event_type": "person_detected", "data": {}},
+                )
+                await websocket.send(person_message)
+
+                # Send another image
+                with open("test_images/test2.jpg", "rb") as f:
+                    image_bytes = f.read()
+                    await websocket.send(b"IMAGE:" + image_bytes)
 
                 logger.info("[ESP CAM] Triggered person detecktion and sent another image")
 

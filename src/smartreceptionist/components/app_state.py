@@ -5,7 +5,7 @@ from enum import Enum
 
 class GateState(Enum):
     OPEN = "open"
-    CLOSED = "closed"
+    CLOSED = "close"
 
 
 class LightState(Enum):

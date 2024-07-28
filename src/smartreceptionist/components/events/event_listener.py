@@ -52,6 +52,18 @@ class EventListener:
             await asyncio.create_task(event_handler.handle_access_control_event(event))
         elif event.event_type == EventType.RECORDING_SENT:
             await asyncio.create_task(event_handler.handle_recording_sent_event())
+        elif event.event_type == EventType.RESET_DEVICE:
+            await asyncio.create_task(event_handler.handle_reset_device_event(event))
+        elif event.event_type == EventType.ENROLL_FINGERPRINT:
+            await asyncio.create_task(event_handler.handle_enroll_fingerprint())
+        elif event.event_type == EventType.FINGERPRINT_ENROLLED:
+            await asyncio.create_task(event_handler.handle_fingerprint_enrolled(event))
+        elif event.event_type == EventType.FINGERPRINT_ENROLLMENT_FAILED:
+            await asyncio.create_task(event_handler.handle_fingerprint_enrollment_failed(event))
+        elif event.event_type == EventType.MOTION_ENABLE:
+            await asyncio.create_task(event_handler.handle_motion_enable_event(event))
+        elif event.event_type == EventType.CHANGE_SERVER:
+            await asyncio.create_task(event_handler.handle_change_server_event(event))
 
         # Handling raw data
         elif event.event_type == EventType.IMAGE_DATA:

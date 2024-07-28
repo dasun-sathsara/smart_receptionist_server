@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 
 async def websocket_client():
-    uri = "ws://localhost:8765"  # Replace with your actual WebSocket server address
+    uri = "ws://34.124.199.12:8765"  # Replace with your actual WebSocket server address
 
     while True:
         try:
